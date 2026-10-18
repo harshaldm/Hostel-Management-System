@@ -396,6 +396,28 @@ router.post('/complaints/add', async (req, res) => {
     }
 });
 
+const VALID_COMPLAINT_STATUSES = ['Pending', 'In Progress', 'Resolved', 'Cancelled'];
+
+const handleComplaintStatusUpdate = async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (!VALID_COMPLAINT_STATUSES.includes(status)) {
+            return res.status(400).json({ error: "Invalid status. Allowed values: 'Pending', 'In Progress', 'Resolved', 'Cancelled'." });
+        }
+        const complaintId = req.params.id;
+        const resolvedAt = (status === 'Resolved') ? new Date() : null;
+        await db.query('UPDATE Complaints SET status = ?, resolved_at = ? WHERE complaint_id = ?', 
+            [status, resolvedAt, complaintId]);
+        res.json({ success: true, complaint_id: complaintId, status, resolved_at: resolvedAt });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+router.patch('/complaints/:id/status', handleComplaintStatusUpdate);
+router.put('/complaints/:id/status', handleComplaintStatusUpdate);
+router.post('/complaints/:id/status', handleComplaintStatusUpdate);
+
 router.post('/complaints/resolve/:id', async (req, res) => {
     try {
         await db.query("UPDATE Complaints SET status = 'Resolved', resolved_at = NOW() WHERE complaint_id = ?", 
@@ -431,29 +453,5 @@ router.post('/visitors/add', async (req, res) => {
     }
 });
 
-router.get('/payments', async (req, res) => {
-    try {
-        const [payments] = await db.query(`
-            SELECT p.*, s.name FROM Payments p 
-            JOIN Students s ON p.bt_no = s.bt_no 
-            ORDER BY p.payment_date DESC
-        `);
-        const [students] = await db.query('SELECT * FROM Students');
-        res.render('room/payments', { payments, students, page: 'payments' });
-    } catch (err) {
-        res.render('room/payments', { payments: [], students: [], page: 'payments', error: err.message });
-    }
-});
-
-router.post('/payments/add', async (req, res) => {
-    try {
-        const { bt_no, amount, payment_date, status } = req.body;
-        await db.query('INSERT INTO Payments (bt_no, amount, payment_date, status) VALUES (?, ?, ?, ?)', 
-            [bt_no, amount, payment_date, status]);
-        res.redirect('/room/payments');
-    } catch (err) {
-        res.redirect('/room/payments');
-    }
-});
-
 module.exports = router;
+module.exports.handleComplaintStatusUpdate = handleComplaintStatusUpdate;

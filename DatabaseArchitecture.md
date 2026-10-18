@@ -1,6 +1,6 @@
 # Hostel Management System — Complete Database Architecture & Technical Reference
 
-This document provides a comprehensive, production-grade technical specification of the PostgreSQL database powering the **Hostel Management System**. It documents all **25 relational tables**, **12 database triggers**, **4 analytical views**, complete **Entity-Relationship (ER) diagrams**, schema data dictionaries, and architectural constraints.
+This document provides a comprehensive, production-grade technical specification of the PostgreSQL database powering the **Hostel Management System**. It documents all **24 relational tables**, **15 database triggers**, **4 analytical views**, complete **Entity-Relationship (ER) diagrams**, schema data dictionaries, and architectural constraints.
 
 ---
 
@@ -27,8 +27,8 @@ The database follows a modular relational model running on **PostgreSQL**. The c
     │ • Automated Refunds     │    │ • Dining Leaves         │    │   Fine Calculation      │
     │ • Complaints & Tickets  │    │ • Automated Rebates     │    │                         │
     │ • Visitor Logs          │    │ • Staff & Role Payroll  │    │                         │
-    │ • Semester Fee Payments │    │ • Operational Expenses  │    │                         │
-    │ • Relocation Audit Log  │    │ • Facility Settings     │    │                         │
+    │ • Relocation Audit Log  │    │ • Operational Expenses  │    │                         │
+    │                         │    │ • Facility Settings     │    │                         │
     └─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
 ```
 
@@ -36,7 +36,7 @@ The database follows a modular relational model running on **PostgreSQL**. The c
 - **Engine**: PostgreSQL 14+ with full ACID compliance and transactional DDL.
 - **Connection Architecture**: Node.js connection pooling via `pg.Pool` (10 max concurrent connections, 30s idle timeout).
 - **Relational Integrity**: Strict Foreign Key constraints backed by `ON DELETE CASCADE` for clean student offboarding.
-- **Server-Side Automation**: 12 stored procedure triggers handling capacity verification, room occupancy tracking, fine computation, and rebate accounting directly at the database engine level.
+- **Server-Side Automation**: 15 stored procedure triggers handling capacity verification, room occupancy tracking, cross-module leave synchronization, fine computation, and rebate accounting directly at the database engine level.
 
 ---
 
@@ -51,7 +51,6 @@ erDiagram
     STUDENTS ||--o| LEAVE_SUMMARY : "aggregates"
     STUDENTS ||--o{ REFUNDS : "receives rebate"
     STUDENTS ||--o{ COMPLAINTS : "files ticket"
-    STUDENTS ||--o{ PAYMENTS : "submits fee"
     STUDENTS ||--o{ VISITORS : "visited by"
     STUDENTS ||--o{ ALLOCATION_HISTORY : "tracks transfers"
 
@@ -115,17 +114,9 @@ erDiagram
         int room_no FK "References Rooms(room_no)"
         varchar issue_type "Electrical, Plumbing, etc."
         text description "Problem Description"
-        varchar status "Pending / In Progress / Resolved"
+        varchar status "Pending / In Progress / Resolved / Cancelled"
         timestamp created_at "Logged At"
         timestamp resolved_at "Closed At"
-    }
-
-    PAYMENTS {
-        int payment_id PK "Auto-increment ID"
-        varchar bt_no FK "References Students(bt_no)"
-        numeric amount "Fee in INR"
-        date payment_date "Payment Date"
-        varchar status "Paid / Pending"
     }
 
     VISITORS {
@@ -284,9 +275,9 @@ erDiagram
 
 ---
 
-## 3. Complete Data Dictionary (All 25 Tables)
+## 3. Complete Data Dictionary (All 24 Tables)
 
-### 3.1 Core Hostel Management Tables (12 Tables)
+### 3.1 Core Hostel Management Tables (11 Tables)
 
 #### 1. `Students`
 Core demographic, academic, and contact directory of enrolled students.
@@ -297,7 +288,7 @@ Core demographic, academic, and contact directory of enrolled students.
 | `year` | `INT` | `NOT NULL` | Academic Year (1, 2, 3, or 4) |
 | `phone` | `VARCHAR(15)` | `UNIQUE, NOT NULL` | 10-digit mobile number |
 | `email` | `VARCHAR(255)` | `UNIQUE, NOT NULL` | Student email address |
-| `branch` | `VARCHAR(100)` | `NOT NULL` | Academic branch (`CSE`, `ECE`, `CSA`, etc.) |
+| `branch` | `VARCHAR(100)` | `NOT NULL` | College academic branch (restricted to: `CSA`, `CSD`, `CSE`, `CSH`, `ECI`, `ECE`) |
 | `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Profile creation timestamp |
 
 #### 2. `Rooms`
@@ -379,7 +370,7 @@ Facility and maintenance ticket tracking system.
 | `room_no` | `INT` | `FK -> Rooms(room_no) ON DELETE CASCADE` | Room needing repair |
 | `issue_type` | `VARCHAR(50)` | `NOT NULL` | Category (`Electrical`, `Plumbing`, `Furniture`, `Internet`, etc.) |
 | `description` | `TEXT` | `NOT NULL` | Ticket issue narrative |
-| `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Workflow state (`Pending`, `In Progress`, `Resolved`) |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Workflow state (`Pending`, `In Progress`, `Resolved`, `Cancelled`) |
 | `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Ticket submission timestamp |
 | `resolved_at` | `TIMESTAMP` | Nullable | Ticket resolution timestamp |
 
@@ -395,28 +386,18 @@ Physical guest entry and exit register.
 | `out_time` | `TIME` | Nullable | Check-out timestamp |
 | `purpose` | `VARCHAR(255)` | Nullable | Visit reason (`Parents Visit`, `Friend Visit`, etc.) |
 
-#### 12. `Payments`
-Semester hostel boarding and lodging fee register.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `payment_id` | `SERIAL` | `PRIMARY KEY` | Payment transaction ID |
-| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
-| `amount` | `DECIMAL(10,2)` | `NOT NULL` | Fee amount in INR |
-| `payment_date` | `DATE` | Nullable | Transaction date (null if pending) |
-| `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Payment state (`Paid`, `Pending`) |
-
 ---
 
 ### 3.2 Mess Facility & Operations Tables (10 Tables)
 
-#### 13. `Mess_Settings`
+#### 12. `Mess_Settings`
 Configuration settings for dining operations.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `setting_name` | `VARCHAR(100)` | `PRIMARY KEY` | Setting key (e.g. `refund_per_day`) |
 | `value` | `DECIMAL(10,2)` | `NOT NULL` | Rate value (e.g. `100.00`) |
 
-#### 14. `Mess_Fees`
+#### 13. `Mess_Fees`
 Monthly mess billing ledger for students.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -428,7 +409,7 @@ Monthly mess billing ledger for students.
 | `payment_date` | `DATE` | Nullable | Settlement date |
 | `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Dues status (`Paid`, `Pending`) |
 
-#### 15. `Mess_Leaves`
+#### 14. `Mess_Leaves`
 Dining absence requests submitted by residents.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -438,7 +419,7 @@ Dining absence requests submitted by residents.
 | `to_date` | `DATE` | `NOT NULL` | Leave end date |
 | `days` | `INT` | `NOT NULL` | Duration in days |
 
-#### 16. `Mess_Refunds`
+#### 15. `Mess_Refunds`
 Rebate credit ledger tracking net mess rebates owed to students.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -448,7 +429,7 @@ Rebate credit ledger tracking net mess rebates owed to students.
 | `refund_amount`| `DECIMAL(10,2)` | `DEFAULT 0` | Net rebate in INR |
 | `last_updated` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last trigger recalculation time |
 
-#### 17. `Menu_Dishes`
+#### 16. `Menu_Dishes`
 Master dish catalogue categorized by meal window.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -456,7 +437,7 @@ Master dish catalogue categorized by meal window.
 | `dish_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Dish title (e.g. `Paneer Curry`) |
 | `meal_type` | `VARCHAR(50)` | `NOT NULL` | Category (`Breakfast`, `Lunch`, `Snacks`, `Dinner`) |
 
-#### 18. `Weekly_Menu`
+#### 17. `Weekly_Menu`
 Recurring weekly mess timetable.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -465,7 +446,7 @@ Recurring weekly mess timetable.
 | `meal_type` | `VARCHAR(20)` | `NOT NULL` | Meal slot |
 | `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id)` | Scheduled dish |
 
-#### 19. `Staff_Roles`
+#### 18. `Staff_Roles`
 Mess employee job roles and compensation structure.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -473,7 +454,7 @@ Mess employee job roles and compensation structure.
 | `role_name` | `VARCHAR(50)` | `UNIQUE, NOT NULL` | Job title (`Head Chef`, `Helper`, `Manager`) |
 | `salary_per_person`| `DECIMAL(10,2)` | `NOT NULL` | Monthly salary in INR |
 
-#### 20. `Mess_Staff`
+#### 19. `Mess_Staff`
 Employee roster and contact directory.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -484,7 +465,7 @@ Employee roster and contact directory.
 | `joining_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date employment began |
 | `status` | `VARCHAR(20)` | `DEFAULT 'Active'` | Status (`Active`, `Inactive`) |
 
-#### 21. `Vendors`
+#### 20. `Vendors`
 Registered wholesale merchants providing supplies and provisions.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -493,7 +474,7 @@ Registered wholesale merchants providing supplies and provisions.
 | `phone` | `VARCHAR(15)` | Nullable | Merchant phone |
 | `item_speciality`| `VARCHAR(100)`| Nullable | Specialty domain (`Dairy`, `Grains`, `LPG`) |
 
-#### 22. `Mess_Expenses`
+#### 21. `Mess_Expenses`
 Daily and monthly operational mess overheads.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -507,7 +488,7 @@ Daily and monthly operational mess overheads.
 
 ### 3.3 Sports Facility Tables (3 Tables)
 
-#### 23. `Sports_Items`
+#### 22. `Sports_Items`
 Master sports gear catalog and stock inventory.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -519,7 +500,7 @@ Master sports gear catalog and stock inventory.
 | `cost_per_item`| `DECIMAL(10,2)` | `DEFAULT 0` | Replacement unit cost |
 | `total_cost` | `DECIMAL(10,2)` | `GENERATED ALWAYS AS (total_quantity * cost_per_item) STORED` | Auto-computed asset value |
 
-#### 24. `Sports_Issues`
+#### 23. `Sports_Issues`
 Checkout registry for student sports equipment loans.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -532,7 +513,7 @@ Checkout registry for student sports equipment loans.
 | `return_date` | `DATE` | Nullable | Actual return date |
 | `status` | `VARCHAR(20)` | `DEFAULT 'Issued'` | Checkout state (`Issued`, `Returned`) |
 
-#### 25. `Sports_Fines`
+#### 24. `Sports_Fines`
 Trigger-generated penalty fees assessed for overdue equipment returns.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -544,9 +525,9 @@ Trigger-generated penalty fees assessed for overdue equipment returns.
 
 ---
 
-## 4. Database Triggers & Business Logic Automation (All 12 Triggers)
+## 4. Database Triggers & Business Logic Automation (All 15 Triggers)
 
-The database engine enforces critical validation and accounting rules through 12 stored procedures:
+The database engine enforces critical validation and accounting rules through 15 stored procedures:
 
 ```
   ┌────────────────────────────────────────────────────────────────────────┐
@@ -558,11 +539,14 @@ The database engine enforces critical validation and accounting rules through 12
      Room_Allocations (AFTER INSERT)  ──► update_room_occupancy
 
   2. HOSTEL ATTENDANCE & REBATES
+     Leave_Log (BEFORE INSERT/UPDATE) ──► trg_leave_log_calc_days (Auto-computes duration)
      Leave_Log (AFTER INSERT)         ──► leave_insert (Upserts Leave_Summary)
+     Leave_Log (AFTER INSERT)         ──► trg_sync_hostel_leave_to_mess (Syncs to Mess)
      Leave_Summary (AFTER INSERT)     ──► refund_insert (Calculates Refunds)
      Leave_Summary (AFTER UPDATE)     ──► refund_update (Recalculates Refunds)
 
   3. MESS DINING REBATES
+     Mess_Leaves (BEFORE INSERT/UPDATE)──► trg_mess_leaves_calc_days (Auto-computes duration)
      Mess_Leaves (AFTER INSERT)       ──► mess_leave_insert (Upserts Mess_Refunds)
      Mess_Leaves (AFTER UPDATE)       ──► mess_leave_update (Recalculates Mess_Refunds)
      Mess_Leaves (AFTER DELETE)       ──► mess_leave_delete (Adjusts Mess_Refunds)
@@ -583,13 +567,16 @@ The database engine enforces critical validation and accounting rules through 12
 | 3 | `leave_insert` | `AFTER INSERT` | `Leave_Log` | Aggregates the newly added leave duration into `Leave_Summary.total_days` for that student. |
 | 4 | `refund_insert` | `AFTER INSERT` | `Leave_Summary` | Reads `Hostel_Settings.leave_refund_per_day` and inserts an initial record in `Refunds` (`total_days * rate`). |
 | 5 | `refund_update` | `AFTER UPDATE` | `Leave_Summary` | Recalculates `Refunds.refund_amount` whenever `Leave_Summary.total_days` changes. |
-| 6 | `mess_leave_insert` | `AFTER INSERT` | `Mess_Leaves` | Inserts or increments `total_days` and `refund_amount` in `Mess_Refunds` (`days * 100`). |
-| 7 | `mess_leave_update` | `AFTER UPDATE` | `Mess_Leaves` | Adjusts `Mess_Refunds` based on the difference between old and new days. |
-| 8 | `mess_leave_delete` | `AFTER DELETE` | `Mess_Leaves` | Deducts deleted leave days from `Mess_Refunds`. |
-| 9 | `mess_refunds_timestamp`| `BEFORE UPDATE` | `Mess_Refunds` | Refreshes `last_updated = CURRENT_TIMESTAMP`. |
-| 10 | `sports_check_stock` | `BEFORE INSERT` | `Sports_Issues` | Verifies `Sports_Items.available_quantity >= NEW.quantity`. Aborts with `'Not enough items available'` if stock is insufficient. |
-| 11 | `sports_reduce_stock` | `AFTER INSERT` | `Sports_Issues` | Decrements `Sports_Items.available_quantity = available_quantity - NEW.quantity`. |
-| 12 | `sports_return_fine` | `AFTER UPDATE` | `Sports_Issues` | Triggers when status changes to `'Returned'`. Replenishes shelf stock. If `return_date > due_date`, computes late days and writes a fine record into `Sports_Fines` (`overdue_days * fine_per_day`). |
+| 6 | `trg_sync_hostel_leave_to_mess` | `AFTER INSERT` | `Leave_Log` | Automatically inserts an identical dining leave into `Mess_Leaves` when a resident applies for hostel gate leave, ensuring dining rebates are automatically awarded. |
+| 7 | `trg_leave_log_calc_days` | `BEFORE INSERT OR UPDATE` | `Leave_Log` | Computes `days = (to_date - from_date) + 1` ensuring inclusive date math across all clients. |
+| 8 | `trg_mess_leaves_calc_days` | `BEFORE INSERT OR UPDATE` | `Mess_Leaves` | Computes `days = (to_date - from_date) + 1` ensuring accurate dining absence days. |
+| 9 | `mess_leave_insert` | `AFTER INSERT` | `Mess_Leaves` | Inserts or increments `total_days` and `refund_amount` in `Mess_Refunds` (`days * 100`). |
+| 10 | `mess_leave_update` | `AFTER UPDATE` | `Mess_Leaves` | Adjusts `Mess_Refunds` based on the difference between old and new days. |
+| 11 | `mess_leave_delete` | `AFTER DELETE` | `Mess_Leaves` | Deducts deleted leave days from `Mess_Refunds`. |
+| 12 | `mess_refunds_timestamp`| `BEFORE UPDATE` | `Mess_Refunds` | Refreshes `last_updated = CURRENT_TIMESTAMP`. |
+| 13 | `sports_check_stock` | `BEFORE INSERT` | `Sports_Issues` | Verifies `Sports_Items.available_quantity >= NEW.quantity`. Aborts with `'Not enough items available'` if stock is insufficient. |
+| 14 | `sports_reduce_stock` | `AFTER INSERT` | `Sports_Issues` | Decrements `Sports_Items.available_quantity = available_quantity - NEW.quantity`. |
+| 15 | `sports_return_fine` | `AFTER UPDATE` | `Sports_Issues` | Triggers when status changes to `'Returned'`. Replenishes shelf stock. If `return_date > due_date`, computes late days and writes a fine record into `Sports_Fines` (`overdue_days * fine_per_day`). |
 
 ---
 
@@ -647,7 +634,7 @@ The schema provides 4 SQL views consumed by frontend dashboard widgets and manag
 1. **3rd Normal Form (3NF)**:
    All tables adhere to 3NF. Non-key attributes are fully dependent only upon the primary key. Aggregates (`Room_Occupancy`, `Leave_Summary`, `Refunds`) exist strictly as trigger-maintained performance caches.
 2. **Referential Integrity**:
-   Foreign keys connecting students to dependent records (`Room_Allocations`, `Leave_Log`, `Complaints`, `Payments`, `Mess_Fees`, `Sports_Issues`) use `ON DELETE CASCADE` so student graduation or offboarding executes without dangling foreign references.
+   Foreign keys connecting students to dependent records (`Room_Allocations`, `Leave_Log`, `Complaints`, `Mess_Fees`, `Sports_Issues`) use `ON DELETE CASCADE` so student graduation or offboarding executes without dangling foreign references.
 3. **Unique Keys & Data Protection**:
    - `Students(phone)` and `Students(email)` enforce strict uniqueness.
    - `Sports_Items(item_name)` and `Menu_Dishes(dish_name)` enforce uniqueness to avoid duplicate entries.

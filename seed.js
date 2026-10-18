@@ -34,13 +34,12 @@ const ROOM_TYPES = [
   { type: 'Double', cap: 2, count: 30 },
   { type: 'Triple', cap: 3, count: 10 },
 ];
-const HOSTEL_FEE = { Single: 45000, Double: 36000, Triple: 30000 }; // per semester
 const MESS_FEE_PER_MONTH = 4500;
 const REFUND_PER_DAY = 100;
 
 const STATUS = {
   PAID: 'Paid', PENDING: 'Pending',
-  OPEN: 'Pending', PROGRESS: 'In Progress', DONE: 'Resolved', // complaints
+  OPEN: 'Pending', PROGRESS: 'In Progress', DONE: 'Resolved', CANCELLED: 'Cancelled', // complaints
   ISSUED: 'Issued', RETURNED: 'Returned',                      // sports_issues
 };
 
@@ -226,7 +225,7 @@ function generate() {
   }
 
   // ── complaints
-  const complaintStatuses = [STATUS.DONE, STATUS.DONE, STATUS.DONE, STATUS.PROGRESS, STATUS.OPEN];
+  const complaintStatuses = [STATUS.DONE, STATUS.DONE, STATUS.PROGRESS, STATUS.OPEN, STATUS.CANCELLED];
   d.complaints = Array.from({ length: 70 }, () => {
     const s = pick(d.students);
     const issue_type = pick(Object.keys(ISSUES));
@@ -235,21 +234,12 @@ function generate() {
     if (status === STATUS.DONE) {
       resolved = new Date(created.getTime() + int(1, 6) * DAY + int(0, 5) * 36e5);
       if (resolved > NOW) { status = STATUS.PROGRESS; resolved = null; }
+    } else if (status === STATUS.CANCELLED) {
+      resolved = null;
     }
     return {
       bt_no: s.bt_no, room_no: s.room_no, issue_type, description: pick(ISSUES[issue_type]),
       status, created_at: ts(created), resolved_at: resolved ? ts(resolved) : null,
-    };
-  });
-
-  // ── hostel payments
-  d.payments = d.students.map(s => {
-    const paid = chance(0.85);
-    return {
-      bt_no: s.bt_no,
-      amount: HOSTEL_FEE[roomByNo.get(s.room_no).room_type],
-      payment_date: paid ? iso(between('2026-07-28', '2026-08-31')) : null,
-      status: paid ? STATUS.PAID : STATUS.PENDING,
     };
   });
 
@@ -386,7 +376,7 @@ function report(d) {
     BRANCHES.map(b => `${b}=${d.students.filter(s => s.branch === b).length}`).join('  '));
   console.log('Rows to insert:', {
     students: d.students.length, rooms: d.rooms.length, allocations: d.allocations.length, history: d.history.length,
-    leaves: d.leaves.length, complaints: d.complaints.length, payments: d.payments.length, visitors: d.visitors.length,
+    leaves: d.leaves.length, complaints: d.complaints.length, visitors: d.visitors.length,
     mess_fees: d.messFees.length, sports_issues: d.sportsIssues.length,
   });
 }
@@ -397,7 +387,7 @@ const ALL_TABLES = [
   'mess_staff', 'staff_roles', 'vendors',
   'weekly_menu', 'menu_dishes',
   'mess_refunds', 'mess_leaves', 'mess_fees', 'mess_expenses',
-  'allocation_history', 'visitors', 'payments', 'complaints',
+  'allocation_history', 'visitors', 'complaints',
   'refunds', 'leave_summary', 'leave_log', 'room_occupancy', 'room_allocations', 'rooms', 'students'
 ];
 
@@ -482,7 +472,6 @@ async function seed(c, d) {
   await insertRows(c, 'allocation_history', d.history);
   await insertRows(c, 'leave_log', d.leaves);
   await insertRows(c, 'complaints', d.complaints);
-  await insertRows(c, 'payments', d.payments);
   await insertRows(c, 'visitors', d.visitors);
 
   console.log('Mess');

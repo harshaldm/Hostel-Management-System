@@ -26,8 +26,9 @@ router.get('/fees', async (req, res) => {
 router.post('/fees/add', async (req, res) => {
     try {
         const { bt_no, month, year, amount, payment_date, status } = req.body;
+        const validStatus = (status === 'Paid') ? 'Paid' : 'Pending';
         await db.query('INSERT INTO Mess_Fees (bt_no, month, year, amount, payment_date, status) VALUES (?, ?, ?, ?, ?, ?)', 
-            [bt_no, month, year, amount, payment_date || null, status]);
+            [bt_no, month, year, amount, payment_date || null, validStatus]);
         res.redirect('/mess/fees');
     } catch (err) {
         res.redirect('/mess/fees');

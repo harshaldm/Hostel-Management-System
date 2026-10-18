@@ -26,7 +26,6 @@
             <a href="/room/leave" class="<%= page === 'leave' ? 'active' : '' %>"><i class="bi bi-calendar-minus"></i> Leave</a>
             <a href="/room/complaints" class="<%= page === 'complaints' ? 'active' : '' %>"><i class="bi bi-exclamation-triangle"></i> Complaints</a>
             <a href="/room/visitors" class="<%= page === 'visitors' ? 'active' : '' %>"><i class="bi bi-people"></i> Visitors</a>
-            <a href="/room/payments" class="<%= page === 'payments' ? 'active' : '' %>"><i class="bi bi-currency-dollar"></i> Payments</a>
             <hr class="text-secondary">
             <div class="text-center text-secondary small py-2">MESS</div>
             <a href="/mess/fees" class="<%= page === 'fees' ? 'active' : '' %>"><i class="bi bi-cash"></i> Fees</a>
@@ -61,13 +60,20 @@
                                 <% complaints.forEach(function(c) { %>
                                 <tr>
                                     <td><%= c.name %></td><td><%= c.room_number %></td><td><%= c.issue_type %></td><td><%= c.description %></td>
-                                    <td><span class="badge bg-<%= c.status === 'Resolved' ? 'success' : c.status === 'In Progress' ? 'warning' : 'danger' %>"><%= c.status %></span></td>
                                     <td>
-                                        <% if (c.status !== 'Resolved') { %>
-                                        <form action="/room/complaints/resolve/<%= c.complaint_id %>" method="POST" style="display:inline;">
-                                            <button class="btn btn-sm btn-success">Resolve</button>
-                                        </form>
-                                        <% } %>
+                                        <span class="badge status-badge <%= c.status === 'Resolved' ? 'bg-success' : c.status === 'In Progress' ? 'bg-warning text-dark' : c.status === 'Cancelled' ? 'bg-secondary' : 'bg-danger' %>">
+                                            <%= c.status %>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" style="width: 140px; font-weight: 500;"
+                                                data-complaint-id="<%= c.complaint_id %>"
+                                                onchange="updateComplaintStatus(this, '<%= c.complaint_id %>')">
+                                            <option value="Pending" <%= c.status === 'Pending' ? 'selected' : '' %>>Pending</option>
+                                            <option value="In Progress" <%= c.status === 'In Progress' ? 'selected' : '' %>>In Progress</option>
+                                            <option value="Resolved" <%= c.status === 'Resolved' ? 'selected' : '' %>>Resolved</option>
+                                            <option value="Cancelled" <%= c.status === 'Cancelled' ? 'selected' : '' %>>Cancelled</option>
+                                        </select>
                                     </td>
                                 </tr>
                                 <% }); %>
@@ -90,14 +96,76 @@
                 <div class="modal-body">
                     <div class="mb-3"><label class="form-label">Student</label><select name="bt_no" class="form-select" required><% students.forEach(function(s) { %><option value="<%= s.bt_no %>"><%= s.name %></option><% }); %></select></div>
                     <div class="mb-3"><label class="form-label">Room</label><select name="room_no" class="form-select" required><% rooms.forEach(function(r) { %><option value="<%= r.room_no %>">Room <%= r.room_no %></option><% }); %></select></div>
-                    <div class="mb-3"><label class="form-label">Issue Type</label><input type="text" name="issue_type" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">Description</label><textarea name="description" class="form-control" required></textarea></div>
+                    <div class="mb-3">
+                        <label class="form-label">Issue Type</label>
+                        <select name="issue_type" class="form-select" required>
+                            <option value="">Select Issue Type</option>
+                            <option value="Electrical">Electrical</option>
+                            <option value="Plumbing">Plumbing</option>
+                            <option value="Furniture">Furniture</option>
+                            <option value="Cleaning">Cleaning</option>
+                            <option value="Internet">Internet</option>
+                            <option value="Pest Control">Pest Control</option>
+                        </select>
+                    </div>
+                    <div class="mb-3"><label class="form-label">Description</label><textarea name="description" class="form-control" maxlength="500" required></textarea></div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Submit</button></div>
             </form>
         </div>
     </div>
 </div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1100;">
+    <div id="statusToast" class="toast align-items-center text-white border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body" id="statusToastBody">Status updated</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+async function updateComplaintStatus(selectElem, complaintId) {
+    const newStatus = selectElem.value;
+    const row = selectElem.closest('tr');
+    const badge = row.querySelector('.status-badge');
+    const prevStatus = badge.textContent.trim();
+    
+    try {
+        const response = await fetch(`/complaints/${complaintId}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
+        });
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to update complaint status');
+        }
+        
+        badge.textContent = newStatus;
+        let badgeClass = 'bg-danger';
+        if (newStatus === 'Resolved') badgeClass = 'bg-success';
+        else if (newStatus === 'In Progress') badgeClass = 'bg-warning text-dark';
+        else if (newStatus === 'Cancelled') badgeClass = 'bg-secondary';
+        
+        badge.className = `badge status-badge ${badgeClass}`;
+        showToast(`Complaint #${complaintId} status updated to ${newStatus}`, true);
+    } catch (err) {
+        selectElem.value = prevStatus;
+        showToast(err.message, false);
+    }
+}
+
+function showToast(message, isSuccess) {
+    const toastEl = document.getElementById('statusToast');
+    const bodyEl = document.getElementById('statusToastBody');
+    bodyEl.textContent = message;
+    toastEl.className = `toast align-items-center text-white border-0 ${isSuccess ? 'bg-success' : 'bg-danger'}`;
+    const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+    toast.show();
+}
+</script>
 </body>
 </html>

@@ -1,99 +1,109 @@
-
 # 🏨 Hostel Management System
 
-**Version 2.0.0** | Node.js · Express.js · PostgreSQL · EJS
+**Version 2.0.0** | Node.js · Express.js · PostgreSQL · EJS · Bootstrap 5
 
-A web-based Hostel Management System designed to simplify hostel administration by providing a centralized dashboard for managing students, room allocations, mess operations, and sports facilities.
-
-The application uses **Node.js and Express.js** for the backend, **PostgreSQL** for database management, and **EJS** for server-rendered user interfaces.
+A production-grade, full-featured Hostel Management System designed to streamline campus residence administration. It provides a centralized administrative portal and a self-service student portal for managing students, room allocations, facilities, mess billing, complaints, and sports operations.
 
 ---
 
 ## 📌 Table of Contents
 
 - [Overview](#-overview)
-- [Features](#-features)
+- [System Portals & Features](#-system-portals--features)
+  - [1. Admin Portal (Dark Theme)](#1-admin-portal-dark-theme)
+  - [2. Student Portal (Green Theme)](#2-student-portal-green-theme)
+  - [3. Database Engine & Automation](#3-database-engine--automation)
 - [Technology Stack](#-technology-stack)
 - [Project Structure](#-project-structure)
 - [Prerequisites](#-prerequisites)
 - [Installation and Setup](#-installation-and-setup)
 - [Environment Configuration](#-environment-configuration)
+- [Database Setup & Seeding](#-database-setup--seeding)
 - [Running the Application](#-running-the-application)
-- [Login Credentials](#-login-credentials)
-- [Database Setup](#-database-setup)
-- [Available Scripts](#-available-scripts)
-- [Troubleshooting](#-troubleshooting)
-- [Security Recommendations](#-security-recommendations)
-- [Future Enhancements](#-future-enhancements)
-- [Contributing](#-contributing)
-- [License](#-license)
+- [Default Login Credentials](#-default-login-credentials)
+- [API & Route Reference](#-api--route-reference)
+- [Verification & Acceptance Testing](#-verification--acceptance-testing)
+- [Contributing & License](#-contributing--license)
 
 ---
 
 ## 🎯 Overview
 
-Managing a hostel involves handling student records, room assignments, mess services, and recreational facilities. Performing these operations manually can lead to inefficient workflows and inconsistent records.
+Managing residential hostels requires synchronized tracking of student records, bed vacancies, dining billing, leave attendance, maintenance tickets, and sports equipment.
 
-The Hostel Management System aims to digitize these processes through a centralized web application.
-
-### Key Objectives
-
-- Centralize hostel-related information and operations.
-- Simplify student and room management.
-- Organize mess and sports facility operations.
-- Maintain structured and consistent records using PostgreSQL.
-- Provide an accessible interface for hostel administrators and students.
+The **Hostel Management System** digitizes these workflows with a high-performance web application backed by PostgreSQL. The system uses relational constraints, automated stored procedure triggers, and dedicated user interfaces for both administrators and residents.
 
 ---
 
-## ✨ Features
+## ✨ System Portals & Features
 
-### 👨‍💼 1. Administration
-- Admin login and authentication.
-- Centralized dashboard for hostel operations.
-- Access to relevant student and facility management modules.
+### 1. Admin Portal (Dark Theme)
+- **Dashboard & Navigation**: High-contrast, dark-themed responsive sidebar (`#1a1a2e`).
+- **Student Directory**: Student records with academic year, contact details, roll number (`bt_no`), and branch selection from official engineering departments (`CSA`, `CSD`, `CSE`, `CSH`, `ECI`, `ECE`).
+- **Room Management & Occupancy**: Real-time room tracking across 5 floors (Single, Double, Triple) with capacity indicators.
+- **Smart Room Allocation**:
+  - The allocation dropdown displays **only available rooms** with free capacity (`COUNT(allocations) < max_capacity`).
+  - Rooms with 0 allocations always remain available.
+  - Reassignment modal automatically excludes the student's current room.
+  - Final database safety trigger enforces integrity against race conditions.
+- **Leave & Refund Processing**: Log hostel leaves with inclusive duration computation and automated daily rebate calculations.
+- **Interactive Complaints Workflow**:
+  - Direct status dropdown (`Pending`, `In Progress`, `Resolved`, `Cancelled`) on every ticket row.
+  - Immediate visual badge color update without full page reloads:
+    - `Pending`: Red
+    - `In Progress`: Yellow
+    - `Resolved`: Green (automatically stamps `resolved_at`)
+    - `Cancelled`: Grey (clears `resolved_at`)
+  - Instant Bootstrap toast notifications for status updates.
+- **Visitor Registry**: Entry and exit logs, host student linking, and purpose logging.
+- **Mess Operations**:
+  - **Mess Fees**: Monthly ledger with status tracking and one-click "Mark Paid".
+  - **Mess Leaves & Refunds**: Synchronized dining rebates recalculated via database triggers.
+  - **Weekly Menu**: Complete 7-day meal schedule across Breakfast, Lunch, Snacks, and Dinner.
+  - **Staff Management**: Mess personnel directory with inline `Active` / `Inactive` toggle and server-side validation.
+  - **Vendors & Expenses**: Daily inventory procurement tracking and operational costs.
+- **Sports Management**:
+  - **Dashboard**: Live KPI stat counters, stock summary, and currently checked-out equipment.
+  - **Inventory**: Stock availability, unit replacement costs, and daily late-fee rates.
+  - **Equipment Issues & Fines**: Equipment loan checkout, return recording, and automated overdue penalty assessment.
 
-### 🎓 2. Student Management
-- Manage student information and records.
-- Support student login using roll number (`bt_no`).
-- Provide student access through a dedicated login page.
+### 2. Student Portal (Green Theme)
+- **Dedicated Student UI**: Modern green-themed sidebar (`#198754`) tailored for mobile and desktop screens.
+- **My Profile**: Identity details, enrollment year, department, and contact information.
+- **My Room**: Current room allocation, floor level, and room type.
+- **Complaint Lodging**:
+  - File room maintenance requests (Electrical, Plumbing, Furniture, Cleaning, Internet, Pest Control).
+  - Automatically associates the complaint with the student's assigned room.
+  - Disables form with a warning if no room has been allocated yet.
+  - "My Complaints" log tracking personal ticket history with live status badges.
+- **Pending Fines**: Dedicated sports equipment fines register showing overdue days and penalty amounts.
+- **Mess Fee Dues (Separate from Fines)**:
+  - Displays outstanding dining fees with readable month names (e.g. "November"), billing year, and amount.
+  - Displays cumulative summary: `"Total due: Rs X"`.
+  - Automatically clears upon administrator marking payment as paid.
+- **Leave Requests**: Apply for Mess Leaves or Hostel Leaves with start/end date validation.
+- **Sports Issues**: Request equipment loans and view return due dates.
 
-### 🛏️ 3. Room Management
-- Organize hostel room information.
-- Support room-related administrative operations.
-- Maintain room records in the PostgreSQL database.
-
-### 🍽️ 4. Mess Management
-- Dedicated mess management module.
-- Database support for mess-related records and operations.
-- Integration with the main hostel database.
-
-### ⚽ 5. Sports Management
-- Dedicated sports management module.
-- Database support for sports-related records and operations.
-- Integration with the main application.
-
-### 🗄️ 6. Database Management
-- PostgreSQL relational database.
-- SQL scripts for schema creation and test data.
-- Database triggers and other schema-level logic where defined.
-- Separate SQL files for core, mess, and sports modules.
-
-> Feature availability depends on the routes, database schema, and UI implemented in the current version of the project.
+### 3. Database Engine & Automation
+- **24 Relational Tables**: Normalized schema across Core Hostel, Dining Facility, and Sports Modules.
+- **15 Database Triggers**: Automated room capacity checks, occupancy counts, inclusive leave duration calculations, cross-module hostel-to-mess leave synchronization, dining rebates, sports stock replenishment, and overdue fine generation.
+- **4 Analytical SQL Views**: Aggregated metrics for refunds, weekly menus, monthly costs, and pending fines.
+- **Enterprise Seeder (`seed.js`)**: Seed script generating realistic data across 448 students, 250 rooms, allocations, menus, staff, and tickets. Preserves student `BT24CSE106` (Bhoumik Jain).
 
 ---
 
 ## 🛠️ Technology Stack
 
-| Technology | Purpose |
-|---|---|
-| Node.js | JavaScript runtime |
-| Express.js | Backend web framework |
-| PostgreSQL | Relational database |
-| `pg` | PostgreSQL connectivity for Node.js |
-| EJS | Server-side HTML templating |
-| npm | Dependency and package management |
-| HTML, CSS, JavaScript | Web interface |
+| Component | Technology | Description |
+|---|---|---|
+| **Runtime** | Node.js (v18+) | Server-side JavaScript execution environment |
+| **Framework** | Express.js 4.x | Fast, minimalist HTTP web application framework |
+| **Database** | PostgreSQL 14+ | Relational ACID database with stored procedure triggers |
+| **Database Driver** | `pg` (node-postgres) | Connection pooling via `pg.Pool` |
+| **Templating** | EJS (Embedded JavaScript) | Dynamic server-side HTML rendering |
+| **UI Framework** | Bootstrap 5.3 & Bootstrap Icons | Modern responsive components and iconography |
+| **Configuration** | `dotenv` | Zero-dependency environment variable loader |
+| **Session Store** | `express-session` | Cookie-based server sessions |
 
 ---
 
@@ -101,473 +111,202 @@ The Hostel Management System aims to digitize these processes through a centrali
 
 ```text
 Hostel-Management-System/
-│
 ├── config/
-│   └── config.js           # Application/database configuration
-│
+│   ├── config.js                     # Global configuration and credentials loader
+│   └── database.js                   # PostgreSQL connection pool with mysql-style helper
+├── middleware/
+│   └── auth.js                       # Admin and Student authentication route guards
+├── public/                           # Static assets, CSS, and scripts
 ├── routes/
-│   ├── auth routes         # Authentication-related routes
-│   ├── room routes         # Room management
-│   ├── mess routes         # Mess management
-│   ├── sports routes       # Sports management
-│   └── student routes      # Student-related operations
-│
-├── views/
-│   └── *.ejs               # EJS templates and UI pages
-│
+│   ├── auth.js                       # Login, student login, and logout endpoints
+│   ├── mess.js                       # Mess fees, leaves, weekly menu, staff, and expenses
+│   ├── room.js                       # Students, rooms, allocations, complaints, visitors
+│   ├── sports.js                     # Sports dashboard, inventory stock, issues, and fines
+│   └── student.js                    # Student portal (profile, dues, complaints, leaves, issues)
 ├── sql/
-│   ├── setup.sql           # Database creation
-│   ├── impr_sql.sql        # Core schema and database logic
-│   ├── mess_sql.sql        # Mess module schema
-│   ├── sports_sql.sql      # Sports module schema
-│   └── test_sql.sql        # Test/sample data
-│
-├── .env.example            # Environment variable template
-├── .env                    # Local environment configuration
-├── .gitignore              # Git ignore rules
-├── server.js               # Application entry point
-├── package.json            # Dependencies and npm scripts
-├── package-lock.json       # Locked dependency versions
-└── README.md               # Project documentation
+│   ├── setup.sql                     # Database initialization
+│   ├── impr_sql.sql                  # Core hostel management schema, triggers, and views
+│   ├── mess_sql.sql                  # Dining facility schema and rebate triggers
+│   ├── sports_sql.sql                # Sports inventory schema and overdue fine triggers
+│   ├── migration_remove_payments.sql # Migration dropping Payments table and setting defaults
+│   └── migration_leave_refunds.sql   # Migration linking mess and hostel leaves to refunds
+├── views/
+│   ├── landing.ejs                   # Public landing page
+│   ├── login.ejs                     # Administrator login page
+│   ├── student-login.ejs             # Student portal login page
+│   ├── room/                         # Admin Core Hostel views (students, rooms, allocations, etc.)
+│   ├── mess/                         # Admin Mess views (fees, leaves, menu, staff, vendors, etc.)
+│   ├── sports/                       # Admin Sports views (dashboard, inventory, issues, fines)
+│   └── student/                      # Student Portal views (profile, room, dues, complaints, etc.)
+├── DatabaseArchitecture.md           # Complete technical reference (24 tables, 12 triggers, ERD)
+├── seed.js                           # Deterministic mock data seeder and reset utility
+├── server.js                         # Application entry point, helpers, and route mounting
+├── package.json                      # NPM dependencies and scripts
+└── README.md                         # Project documentation
 ```
-
-**Note:** The route filenames above are descriptive placeholders. Refer to the actual files in your `routes/` directory for the exact names.
 
 ---
 
 ## 📋 Prerequisites
 
-Ensure the following software is installed:
-
-- **Node.js:** v14 or later (a currently supported LTS version is recommended).
-- **npm:** Included with Node.js.
-- **PostgreSQL:** A running PostgreSQL server.
-- **Git:** Optional, for cloning the repository.
-- **psql:** PostgreSQL command-line client.
-
-Verify your installations:
-
-```bash
-node --version
-npm --version
-psql --version
-```
+Ensure the following tools are installed:
+- **Node.js**: v18.0.0 or higher
+- **npm**: v9.0.0 or higher
+- **PostgreSQL**: v14 or higher running on port `5432`
 
 ---
 
 ## 🚀 Installation and Setup
 
-### Step 1: Clone the Repository
-
-If the project is hosted on GitHub:
+### 1. Clone Repository & Install Dependencies
 
 ```bash
-git clone <YOUR_REPOSITORY_URL>
-cd "Hostel Management System"
-```
-
-Alternatively, open a terminal in the existing project directory.
-
-### Step 2: Set Up PostgreSQL
-
-Ensure your PostgreSQL server is running and that you have access to a PostgreSQL user with permission to create databases.
-
-Create the database and load the required SQL scripts in the order described in the [Database Setup](#-database-setup) section.
-
-### Step 3: Install Dependencies
-
-Run the following command from the project root:
-
-```bash
+git clone https://github.com/harshaldm/Hostel-Management-System.git
+cd Hostel-Management-System
 npm install
 ```
 
-This installs the packages specified in `package.json` into the local `node_modules/` directory.
+### 2. Configure Environment Variables
 
-**Important:** `node_modules/` is not committed to Git because it is generated locally and may contain platform-specific files. Run `npm install` after cloning the repository.
-
-### Step 4: Configure Environment Variables
-
-Create your local `.env` file from the provided template.
-
-**Windows PowerShell or Command Prompt:**
-
-```powershell
-Copy-Item .env.example .env
-```
-
-For Command Prompt, use:
-
-```cmd
-copy .env.example .env
-```
-
-**Linux/macOS:**
-
-```bash
-cp .env.example .env
-```
-
-Open `.env` and update the database credentials and application settings.
-
-### Step 5: Start the Application
-
-```bash
-npm start
-```
-
-Open the application in your browser:
-
-**http://localhost:3000**
-
-For development, use:
-
-```bash
-npm run dev
-```
-
-This command assumes that the `dev` script is configured in `package.json`.
-
----
-
-## ⚙️ Environment Configuration
-
-Example `.env` configuration:
+Create a `.env` file in the project root:
 
 ```env
 # PostgreSQL Configuration
 DB_HOST=localhost
 DB_USER=postgres
-DB_PASSWORD=your_password_here
+DB_PASSWORD=your_postgres_password
 DB_NAME=hostel_management
 DB_PORT=5432
 
-# Application Configuration
+# Application Server Port
 PORT=3000
 
-# Admin Credentials
+# Authentication Credentials
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=admin123
-
-# Default Student Password
 STUDENT_PASSWORD=pass123
-
-# Session Configuration
-SESSION_SECRET=replace_with_a_long_random_secret
 ```
-
-### Environment Variables Reference
-
-| Variable | Description | Example |
-|---|---|---|
-| `DB_HOST` | PostgreSQL server hostname | `localhost` |
-| `DB_USER` | PostgreSQL username | `postgres` |
-| `DB_PASSWORD` | PostgreSQL password | Your database password |
-| `DB_NAME` | Database name | `hostel_management` |
-| `DB_PORT` | PostgreSQL port | `5432` |
-| `PORT` | Application server port | `3000` |
-| `ADMIN_USERNAME` | Configured admin username | `admin` |
-| `ADMIN_PASSWORD` | Configured admin password | Set locally |
-| `STUDENT_PASSWORD` | Default student password, if supported by the application | Set locally |
-| `SESSION_SECRET` | Secret used for session signing | Random secret |
-
-**Important:** The application must load environment variables before reading them. Confirm that `server.js` or your configuration module loads `dotenv` if the project uses a `.env` file.
 
 ---
 
-## 🗄️ Database Setup
+## 🗄️ Database Setup & Seeding
 
-Run the SQL scripts from the project root.
+### Option A: Complete Seed (Recommended)
+You can create the database schema and populate all 24 tables with realistic data in one command:
 
-### Step 1: Create the Database
+```bash
+# Wipe all tables and populate fresh mock data:
+node seed.js --reset
+```
 
+### Option B: Dry Run (Validation only)
+Inspect the generated data distribution without modifying the database:
+
+```bash
+node seed.js --dry
+```
+
+### Option C: Manual SQL Scripts via `psql`
 ```bash
 psql -U postgres -f sql/setup.sql
-```
-
-This script is expected to create the `hostel_management` database.
-
-### Step 2: Create Core Tables and Database Logic
-
-```bash
 psql -U postgres -d hostel_management -f sql/impr_sql.sql
-```
-
-This loads the main database schema and associated logic.
-
-### Step 3: Configure the Mess Module
-
-```bash
 psql -U postgres -d hostel_management -f sql/mess_sql.sql
-```
-
-### Step 4: Configure the Sports Module
-
-```bash
 psql -U postgres -d hostel_management -f sql/sports_sql.sql
+psql -U postgres -d hostel_management -f sql/migration_remove_payments.sql
 ```
-
-### Step 5: Load Test Data
-
-```bash
-psql -U postgres -d hostel_management -f sql/test_sql.sql
-```
-
-The test data is intended to help verify the application during local development.
-
-> **Warning:** Run test-data scripts only against a development database unless you have verified their contents. They may insert, update, or delete records.
-
-### Verify the Database
-
-Connect to PostgreSQL:
-
-```bash
-psql -U postgres -d hostel_management
-```
-
-List the available tables:
-
-```sql
-\dt
-```
-
-Exit PostgreSQL:
-
-```sql
-\q
-```
-
-**Windows note:** If `psql` is not recognized, add the PostgreSQL `bin` directory to your PATH or run the command from the SQL Shell (psql).
 
 ---
 
 ## ▶️ Running the Application
 
-### Production-style Start
+Start the web server:
 
 ```bash
 npm start
 ```
 
-### Development Start
-
-```bash
-npm run dev
-```
-
-### Expected Result
-
-Once the application starts successfully, visit:
-
-```text
-http://localhost:3000
-```
-
-The actual port may differ if you change the `PORT` environment variable.
+Visit the application in your browser:
+**[http://localhost:3000](http://localhost:3000)**
 
 ---
 
-## 🔐 Login Credentials
+## 🔐 Default Login Credentials
 
-The following are the example default credentials documented for the current setup.
-
-| User Type | Login Page | Username / Identifier | Password |
+| Role | Portal URL | Username / Roll No | Default Password |
 |---|---|---|---|
-| Admin | `/login` | `admin` | `admin123` |
-| Student | `/student-login` | Student roll number (`bt_no`) | `pass123` |
-
-### Admin Login
-
-Navigate to:
-
-```text
-http://localhost:3000/login
-```
-
-Use the configured admin username and password.
-
-### Student Login
-
-Navigate to:
-
-```text
-http://localhost:3000/student-login
-```
-
-Enter the student's roll number (`bt_no`) and the configured default student password.
-
-> **Security warning:** These credentials are for local development only. Change default passwords before deployment. Actual login behavior depends on the authentication logic implemented in the application.
+| **Administrator** | `http://localhost:3000/login` | `admin` | `admin123` |
+| **Student** | `http://localhost:3000/student-login` | `BT24CSE106` *(or any seeded roll no)* | `pass123` |
 
 ---
 
-## 📜 Available Scripts
+## 🌐 API & Route Reference
 
-| Command | Description |
-|---|---|
-| `npm install` | Install project dependencies |
-| `npm start` | Start the application using the configured start script |
-| `npm run dev` | Start the development server, if configured |
+### Authentication Routes
+- `GET /` — Public landing page.
+- `GET /login` / `POST /login` — Admin login and session creation.
+- `GET /student-login` / `POST /student-login` — Student authentication via Roll No / Phone.
+- `GET /logout` — Destroys session and redirects to landing.
 
-To inspect all available npm scripts:
+### Core Hostel Routes (`/room`)
+- `GET /room/students` — Student directory with branch filter and modal forms.
+- `POST /room/students/add` — Enrolls new student with department validation.
+- `GET /room/rooms` — Room layout, types, and floor occupancy.
+- `GET /room/allocations` — Tenancy records and allocation modal.
+- `GET /room/available-rooms` — JSON endpoint returning only rooms with free beds.
+- `POST /room/allocations/add` — Assigns student to room (capacity enforced).
+- `POST /room/allocations/reassign` — Transfers student to a different available room.
+- `GET /room/complaints` — Maintenance tickets table with interactive status select.
+- `PATCH /complaints/:id/status` — Updates ticket status (`Pending`, `In Progress`, `Resolved`, `Cancelled`).
+- `GET /room/visitors` — Visitor registry.
+
+### Dining Routes (`/mess`)
+- `GET /mess/fees` — Student monthly dining fee register.
+- `POST /mess/fees/add` — Issues monthly dining fee.
+- `POST /mess/fees/mark-paid/:id` — Marks fee as paid.
+- `GET /mess/leaves` — Mess leaves log and rebate summaries.
+- `GET /mess/menu` — 7-day weekly menu timetable.
+- `GET /mess/staff` — Staff roster with inline `Active` / `Inactive` status dropdown.
+- `PATCH /mess/staff/:id/status` — Persists staff employment status.
+- `GET /mess/vendors` — Registered supplier directory.
+- `GET /mess/expenses` — Operational dining expenses.
+
+### Sports Routes (`/sports`)
+- `GET /sports/dashboard` — KPI dashboard, equipment summary, and current loans.
+- `GET /sports/inventory` — Stock levels, fines per day, and costs.
+- `GET /sports/issues` — Loan checkout register and return processing.
+- `GET /sports/fines` — Overdue penalties log.
+
+### Student Portal Routes (`/student`)
+- `GET /student/profile` — Student profile overview.
+- `GET /student/room` — Personal room details and roommates.
+- `GET /student/dues` — Unpaid mess fees with month names and total balance.
+- `GET /student/complaints` — Submit room maintenance issues and view history.
+- `POST /student/complaints/add` — Submits ticket auto-binding student room.
+- `GET /student/fines` — Pending sports penalties.
+- `GET /student/mess-leave` / `POST /student/mess-leave/add` — Dining absence requests.
+- `GET /student/hostel-leave` / `POST /student/hostel-leave/add` — Hostel gate pass requests.
+- `GET /student/sports-issue` / `POST /student/sports-issue/add` — Equipment loan requests.
+
+---
+
+## 🧪 Verification & Acceptance Testing
+
+The repository contains automated acceptance test suites covering core functionality:
 
 ```bash
-npm run
+# Run acceptance test harness:
+node test_acceptance.js
 ```
+
+### Verified Acceptance Scenarios:
+1. **Hostel Payments Removal**: Table dropped without cascade; sidebar link and route removed; mess fees intact.
+2. **Student Dues Isolation**: Displays pending mess dues with readable month names and total amount; separate from sports fines; clears live upon payment.
+3. **Complaint Workflow**: Instant status changes (`Pending`, `In Progress`, `Resolved`, `Cancelled`), timestamp auditing, 400 rejection on invalid status, unallocated room protection.
+4. **Smart Room Allocations**: Available-only room filtering with capacity trigger fallback.
 
 ---
 
-## 🧰 Troubleshooting
+## 📄 License & Technical Documentation
 
-### 1. PostgreSQL Connection Error
-
-**Possible causes:**
-- PostgreSQL is not running.
-- Database credentials are incorrect.
-- The database has not been created.
-- The configured host or port is incorrect.
-
-**What to do:**
-
-1. Verify that PostgreSQL is running.
-2. Check your `.env` values.
-3. Confirm that the `hostel_management` database exists.
-4. Test the connection:
-
-```bash
-psql -U postgres -d hostel_management
-```
-
-### 2. `npm install` Fails
-
-Try the following:
-
-```bash
-node --version
-npm --version
-npm install
-```
-
-If necessary, check your network connection and the error output before clearing caches or removing lockfiles.
-
-### 3. Port 3000 Is Already in Use
-
-Change the port in `.env`:
-
-```env
-PORT=3001
-```
-
-Restart the application and open:
-
-```text
-http://localhost:3001
-```
-
-### 4. Missing Environment Variables
-
-- Confirm that `.env` exists in the project root.
-- Check that variable names match those used in the code.
-- Ensure environment variables are loaded before the database connection is initialized.
-- Restart the server after changing configuration.
-
-### 5. Database Tables Are Missing
-
-Run the schema scripts in the correct order:
-
-1. `setup.sql`
-2. `impr_sql.sql`
-3. `mess_sql.sql`
-4. `sports_sql.sql`
-5. `test_sql.sql`
-
-Check the SQL output for errors before proceeding.
-
-### 6. `npm run dev` Does Not Work
-
-Inspect the `scripts` section of `package.json`. If the `dev` script is absent, use `npm start` or configure a development script supported by your project.
-
----
-
-## 🔒 Security Recommendations
-
-Before deploying this project, consider the following improvements:
-
-- Never commit `.env` or real database credentials to Git.
-- Replace default admin and student passwords.
-- Use strong, randomly generated session secrets.
-- Hash passwords using a suitable password-hashing algorithm such as Argon2 or bcrypt.
-- Validate and sanitize user input.
-- Use parameterized SQL queries to help prevent SQL injection.
-- Configure secure session cookies and HTTPS in production.
-- Add appropriate authentication and authorization checks to protected routes.
-- Avoid exposing database errors and sensitive information to users.
-- Use a least-privilege PostgreSQL account for the application.
-- Review dependencies regularly for security vulnerabilities.
-
-For a basic dependency audit, run:
-
-```bash
-npm audit
-```
-
-Review the reported issues before applying updates.
-
----
-
-## 🚧 Future Enhancements
-
-Potential improvements for future versions include:
-
-- Student profile and attendance management.
-- Automated room allocation and availability tracking.
-- Online mess menu and feedback management.
-- Sports facility booking and scheduling.
-- Fee tracking and payment management.
-- Maintenance requests and complaint tracking.
-- Email or in-app notifications.
-- Reports and analytics for hostel administrators.
-- Role-based access control for administrators, students, and staff.
-- Responsive UI improvements for mobile devices.
-
-These are suggested enhancements and may not be available in version 2.0.0.
-
----
-
-## 🤝 Contributing
-
-Contributions, bug reports, and suggestions are welcome.
-
-1. Fork the repository.
-2. Create a feature branch:
-
-   ```bash
-   git checkout -b feature/your-feature
-   ```
-
-3. Implement and test your changes.
-4. Commit your changes:
-
-   ```bash
-   git add .
-   git commit -m "Add: describe your changes"
-   ```
-
-5. Push the branch:
-
-   ```bash
-   git push origin feature/your-feature
-   ```
-
-6. Open a pull request describing your changes.
-
----
-
-## 📄 License
-
-No license has been specified in this README. Add a `LICENSE` file and update this section to reflect the license you choose.
-
----
-
-**Hostel Management System v2.0.0**
-
-*Simplifying hostel administration through a centralized web application.*
+- Full database architecture, Entity-Relationship diagrams, and trigger matrix: **[DatabaseArchitecture.md](file:///c:/Users/bhoum/Desktop/coding/AG/Hostel-Management-System/DatabaseArchitecture.md)**.
+- Licensed under the **MIT License**.

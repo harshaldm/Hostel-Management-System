@@ -53,6 +53,95 @@ router.get('/fines', async (req, res) => {
     }
 });
 
+const MONTH_NAMES = [
+    '', 'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+];
+
+router.get('/dues', async (req, res) => {
+    try {
+        const student = req.session.student;
+        const [rows] = await db.query(`
+            SELECT fee_id, bt_no, month, year, amount, status
+            FROM Mess_Fees
+            WHERE bt_no = ? AND status = 'Pending'
+            ORDER BY year ASC, month ASC, fee_id ASC
+        `, [student.bt_no]);
+        
+        const dues = rows.map(r => ({
+            ...r,
+            month_name: MONTH_NAMES[r.month] || `Month ${r.month}`
+        }));
+        const totalDue = dues.reduce((sum, d) => sum + parseFloat(d.amount || 0), 0);
+
+        res.render('student/dues', { student, dues, totalDue, page: 'dues' });
+    } catch (err) {
+        res.render('student/dues', { student: req.session.student, dues: [], totalDue: 0, page: 'dues', error: err.message });
+    }
+});
+
+router.get('/complaints', async (req, res) => {
+    try {
+        const student = req.session.student;
+        const [alloc] = await db.query('SELECT room_no FROM Room_Allocations WHERE bt_no = ?', [student.bt_no]);
+        const [complaints] = await db.query(`
+            SELECT * FROM Complaints
+            WHERE bt_no = ?
+            ORDER BY created_at DESC
+        `, [student.bt_no]);
+
+        res.render('student/complaints', {
+            student,
+            room: (alloc && alloc.length > 0) ? alloc[0].room_no : null,
+            complaints,
+            page: 'complaints',
+            error: req.query.error || null,
+            success: req.query.success || null
+        });
+    } catch (err) {
+        res.render('student/complaints', {
+            student: req.session.student,
+            room: null,
+            complaints: [],
+            page: 'complaints',
+            error: err.message,
+            success: null
+        });
+    }
+});
+
+router.post('/complaints/add', async (req, res) => {
+    try {
+        const student = req.session.student;
+        const [alloc] = await db.query('SELECT room_no FROM Room_Allocations WHERE bt_no = ?', [student.bt_no]);
+        if (!alloc || alloc.length === 0) {
+            return res.redirect('/student/complaints?error=' + encodeURIComponent('No room allocated yet. You cannot file a complaint.'));
+        }
+
+        let { issue_type, description } = req.body;
+        description = (description || '').trim();
+        issue_type = (issue_type || '').trim();
+
+        if (!issue_type || !description) {
+            return res.redirect('/student/complaints?error=' + encodeURIComponent('Please select an issue type and provide a description.'));
+        }
+
+        if (description.length > 500) {
+            description = description.substring(0, 500);
+        }
+
+        const room_no = alloc[0].room_no;
+        await db.query(`
+            INSERT INTO Complaints (bt_no, room_no, issue_type, description, status, created_at)
+            VALUES (?, ?, ?, ?, 'Pending', NOW())
+        `, [student.bt_no, room_no, issue_type, description]);
+
+        res.redirect('/student/complaints?success=' + encodeURIComponent('Complaint submitted successfully.'));
+    } catch (err) {
+        res.redirect('/student/complaints?error=' + encodeURIComponent(err.message));
+    }
+});
+
 router.get('/mess-leave', async (req, res) => {
     const student = req.session.student;
     try {

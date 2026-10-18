@@ -56,6 +56,11 @@ app.use('/mess', messRoutes);
 app.use('/sports', sportsRoutes);
 app.use('/student', studentRoutes);
 
+const { handleComplaintStatusUpdate } = require('./routes/room');
+app.patch('/complaints/:id/status', handleComplaintStatusUpdate);
+app.put('/complaints/:id/status', handleComplaintStatusUpdate);
+app.post('/complaints/:id/status', handleComplaintStatusUpdate);
+
 app.get('/dashboard', (req, res) => {
     if (!req.session.isAdmin) return res.redirect('/login');
     res.redirect('/room/students');
