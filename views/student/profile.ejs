@@ -53,7 +53,7 @@
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Year</td>
-                                    <td><%= student.year %></td>
+                                    <td><%= student.year == 1 ? '1st Year' : student.year == 2 ? '2nd Year' : student.year == 3 ? '3rd Year' : student.year == 4 ? '4th Year' : (student.year || 'N/A') %></td>
                                 </tr>
                                 <tr>
                                     <td class="text-muted">Branch</td>

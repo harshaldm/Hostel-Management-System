@@ -10,8 +10,14 @@ router.get('/', (req, res) => {
 });
 
 router.get('/profile', async (req, res) => {
-    const student = req.session.student;
-    res.render('student/profile', { student, page: 'profile' });
+    try {
+        const [rows] = await db.query('SELECT * FROM Students WHERE bt_no = ?', [req.session.student.bt_no]);
+        const student = (rows && rows.length > 0) ? rows[0] : req.session.student;
+        req.session.student = student;
+        res.render('student/profile', { student, page: 'profile' });
+    } catch (err) {
+        res.render('student/profile', { student: req.session.student, page: 'profile' });
+    }
 });
 
 router.get('/room', async (req, res) => {

@@ -32,9 +32,14 @@ router.post('/student-login', async (req, res) => {
         return res.render('student-login', { error: 'Invalid credentials' });
     }
     try {
-        const [students] = await db.query('SELECT * FROM Students WHERE bt_no = ?', [rollno.toUpperCase()]);
+        const identifier = (rollno || '').trim();
+        const cleanPhone = identifier.replace(/[\s\-\+]/g, '');
+        const [students] = await db.query(
+            'SELECT * FROM Students WHERE UPPER(bt_no) = ? OR phone = ?', 
+            [identifier.toUpperCase(), cleanPhone]
+        );
         if (students.length === 0) {
-            return res.render('student-login', { error: 'Student not found' });
+            return res.render('student-login', { error: 'Student not found with this Roll No or Phone Number' });
         }
         req.session.isStudent = true;
         req.session.student = students[0];

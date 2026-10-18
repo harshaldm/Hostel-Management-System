@@ -8,29 +8,151 @@ router.use(isAuthenticated);
 router.get('/students', async (req, res) => {
     try {
         const [students] = await db.query('SELECT * FROM Students ORDER BY bt_no');
-        res.render('room/students', { students, page: 'students' });
+        res.render('room/students', { 
+            students, 
+            page: 'students',
+            error: req.query.error || null,
+            success: req.query.success || null
+        });
     } catch (err) {
-        res.render('room/students', { students: [], page: 'students', error: err.message });
+        res.render('room/students', { 
+            students: [], 
+            page: 'students', 
+            error: err.message,
+            success: null 
+        });
     }
 });
 
 router.post('/students/add', async (req, res) => {
+    let { bt_no, name, year, phone, email, branch } = req.body;
+    bt_no = (bt_no || '').trim().toUpperCase();
+    name = (name || '').trim();
+    phone = (phone || '').toString().trim().replace(/[\s\-\+]/g, '');
+    email = (email || '').trim().toLowerCase();
+    branch = (branch || '').trim().toUpperCase();
+    const parsedYear = parseInt(year, 10);
+
+    const renderWithError = async (errorMessage) => {
+        const [students] = await db.query('SELECT * FROM Students ORDER BY bt_no').catch(() => [[]]);
+        return res.render('room/students', { 
+            students, 
+            page: 'students', 
+            error: errorMessage,
+            success: null 
+        });
+    };
+
+    // 1. Validation for BT No
+    if (!bt_no || bt_no.length < 4 || !/^[A-Z0-9_-]+$/i.test(bt_no)) {
+        return renderWithError('Invalid BT / Roll Number. Must be at least 4 alphanumeric characters (e.g. BT24CSE082).');
+    }
+
+    // 2. Validation for Name
+    if (!name || name.length < 2 || !/^[a-zA-Z\s\.\-]+$/.test(name)) {
+        return renderWithError('Invalid Name. Please provide a valid student name (letters only).');
+    }
+
+    // 3. Validation for Year (1st, 2nd, 3rd, 4th Year)
+    if (![1, 2, 3, 4].includes(parsedYear)) {
+        return renderWithError('Please select a valid academic year (1st, 2nd, 3rd, or 4th Year).');
+    }
+
+    // 4. Strict Validation for 10-digit Phone Number
+    if (!/^\d{10}$/.test(phone)) {
+        return renderWithError('Phone number must be exactly 10 digits (numbers only, no country code or symbols).');
+    }
+
+    // 5. Validation for Email
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return renderWithError('Please enter a valid email address.');
+    }
+
+    // 6. Validation for Branch
+    if (!branch || branch.length < 2) {
+        return renderWithError('Please specify a valid branch/department (e.g. CSE, ECE, MECH).');
+    }
+
     try {
-        const { bt_no, name, year, phone, email, branch } = req.body;
+        // Check for duplicates
+        const [existingBt] = await db.query('SELECT bt_no FROM Students WHERE UPPER(bt_no) = ?', [bt_no]);
+        if (existingBt.length > 0) {
+            return renderWithError(`Student with BT No "${bt_no}" already exists.`);
+        }
+
+        const [existingPhone] = await db.query('SELECT bt_no FROM Students WHERE phone = ?', [phone]);
+        if (existingPhone.length > 0) {
+            return renderWithError(`Phone number "${phone}" is already registered to student ${existingPhone[0].bt_no}.`);
+        }
+
+        const [existingEmail] = await db.query('SELECT bt_no FROM Students WHERE LOWER(email) = ?', [email]);
+        if (existingEmail.length > 0) {
+            return renderWithError(`Email "${email}" is already registered to student ${existingEmail[0].bt_no}.`);
+        }
+
         await db.query('INSERT INTO Students (bt_no, name, year, phone, email, branch) VALUES (?, ?, ?, ?, ?, ?)', 
-            [bt_no, name, year, phone, email, branch]);
-        res.redirect('/room/students');
+            [bt_no, name, parsedYear, phone, email, branch]);
+        res.redirect('/room/students?success=' + encodeURIComponent(`Student ${bt_no} successfully added.`));
     } catch (err) {
-        res.render('room/students', { students: [], page: 'students', error: err.message });
+        return renderWithError(err.message);
+    }
+});
+
+router.post('/students/edit/:bt_no', async (req, res) => {
+    const targetBt = (req.params.bt_no || '').trim().toUpperCase();
+    let { name, year, phone, email, branch } = req.body;
+    name = (name || '').trim();
+    phone = (phone || '').toString().trim().replace(/[\s\-\+]/g, '');
+    email = (email || '').trim().toLowerCase();
+    branch = (branch || '').trim().toUpperCase();
+    const parsedYear = parseInt(year, 10);
+
+    if (!name || name.length < 2 || !/^[a-zA-Z\s\.\-]+$/.test(name)) {
+        return res.redirect('/room/students?error=' + encodeURIComponent('Invalid Name. Letters only.'));
+    }
+
+    if (![1, 2, 3, 4].includes(parsedYear)) {
+        return res.redirect('/room/students?error=' + encodeURIComponent('Please select a valid academic year (1st, 2nd, 3rd, or 4th Year).'));
+    }
+
+    if (!/^\d{10}$/.test(phone)) {
+        return res.redirect('/room/students?error=' + encodeURIComponent('Phone number must be exactly 10 digits.'));
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.redirect('/room/students?error=' + encodeURIComponent('Please enter a valid email address.'));
+    }
+
+    if (!branch || branch.length < 2) {
+        return res.redirect('/room/students?error=' + encodeURIComponent('Please enter a valid branch.'));
+    }
+
+    try {
+        const [existingPhone] = await db.query('SELECT bt_no FROM Students WHERE phone = ? AND UPPER(bt_no) != ?', [phone, targetBt]);
+        if (existingPhone.length > 0) {
+            return res.redirect('/room/students?error=' + encodeURIComponent(`Phone number "${phone}" is already used by ${existingPhone[0].bt_no}.`));
+        }
+
+        const [existingEmail] = await db.query('SELECT bt_no FROM Students WHERE LOWER(email) = ? AND UPPER(bt_no) != ?', [email, targetBt]);
+        if (existingEmail.length > 0) {
+            return res.redirect('/room/students?error=' + encodeURIComponent(`Email "${email}" is already used by ${existingEmail[0].bt_no}.`));
+        }
+
+        await db.query('UPDATE Students SET name = ?, year = ?, phone = ?, email = ?, branch = ? WHERE UPPER(bt_no) = ?', 
+            [name, parsedYear, phone, email, branch, targetBt]);
+        res.redirect('/room/students?success=' + encodeURIComponent(`Student ${targetBt} updated successfully.`));
+    } catch (err) {
+        res.redirect('/room/students?error=' + encodeURIComponent(err.message));
     }
 });
 
 router.post('/students/delete/:bt_no', async (req, res) => {
+    const targetBt = req.params.bt_no;
     try {
-        await db.query('DELETE FROM Students WHERE bt_no = ?', [req.params.bt_no]);
-        res.redirect('/room/students');
+        await db.query('DELETE FROM Students WHERE bt_no = ?', [targetBt]);
+        res.redirect('/room/students?success=' + encodeURIComponent(`Student ${targetBt} deleted successfully.`));
     } catch (err) {
-        res.redirect('/room/students');
+        res.redirect('/room/students?error=' + encodeURIComponent(`Cannot delete student ${targetBt}: ${err.message}`));
     }
 });
 
