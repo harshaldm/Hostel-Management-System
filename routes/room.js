@@ -67,6 +67,21 @@ router.post('/rooms/delete/:room_no', async (req, res) => {
     }
 });
 
+router.post('/rooms/edit/:room_no', async (req, res) => {
+    try {
+        const { max_capacity, floor_no, room_type } = req.body;
+        await db.query(
+            'UPDATE Rooms SET max_capacity = ?, floor_no = ?, room_type = ? WHERE room_no = ?',
+            [max_capacity, floor_no, room_type, req.params.room_no]
+        );
+        res.redirect('/room/rooms');
+    } catch (err) {
+        res.redirect('/room/rooms');
+    }
+});
+
+
+
 router.get('/allocations', async (req, res) => {
     try {
         const [allocations] = await db.query(`

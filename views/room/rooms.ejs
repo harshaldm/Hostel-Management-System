@@ -96,6 +96,9 @@
                                                 <% } %>
                                             </td>
                                             <td>
+                                                <button class="btn btn-sm btn-warning me-1" onclick="openEditModal(<%= room.room_no %>, <%= room.max_capacity %>, <%= room.floor_no %>, '<%= room.room_type %>')">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
                                                 <form action="/room/rooms/delete/<%= room.room_no %>" method="POST" style="display:inline;">
                                                     <button class="btn btn-sm btn-danger" onclick="return confirm('Delete room?')">
                                                         <i class="bi bi-trash"></i>
@@ -131,21 +134,22 @@
                         <input type="number" name="room_no" class="form-control" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Room Type</label>
+                        <select name="room_type" id="add_room_type" class="form-select" onchange="syncCapacity('add_room_type','add_max_capacity')">
+                            <option value="Single">Single (1 person)</option>
+                            <option value="Double">Double (2 persons)</option>
+                            <option value="Triple">Triple (3 persons)</option>
+                            <option value="Dormitory">Dormitory (custom)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Max Capacity</label>
-                        <input type="number" name="max_capacity" class="form-control" required>
+                        <input type="number" name="max_capacity" id="add_max_capacity" class="form-control" min="1" value="1" required>
+                        <div class="form-text text-muted">Auto-filled by room type. Override for Dormitory.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Floor No</label>
                         <input type="number" name="floor_no" class="form-control" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label">Room Type</label>
-                        <select name="room_type" class="form-select">
-                            <option value="Single">Single</option>
-                            <option value="Double">Double</option>
-                            <option value="Triple">Triple</option>
-                            <option value="Dormitory">Dormitory</option>
-                        </select>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -156,6 +160,90 @@
     </div>
 </div>
 
+<!-- Edit Room Modal -->
+<div class="modal fade" id="editModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil-square"></i> Edit Room</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" id="editForm" action="">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Room No</label>
+                        <input type="text" id="edit_room_no_display" class="form-control" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Room Type</label>
+                        <select name="room_type" id="edit_room_type" class="form-select" onchange="syncCapacity('edit_room_type','edit_max_capacity')">
+                            <option value="Single">Single (1 person)</option>
+                            <option value="Double">Double (2 persons)</option>
+                            <option value="Triple">Triple (3 persons)</option>
+                            <option value="Dormitory">Dormitory (custom)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Max Capacity</label>
+                        <input type="number" name="max_capacity" id="edit_max_capacity" class="form-control" min="1" required>
+                        <div class="form-text text-muted">Auto-filled by room type. Override for Dormitory.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Floor No</label>
+                        <input type="number" name="floor_no" id="edit_floor_no" class="form-control" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning"><i class="bi bi-save"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const capacityMap = { Single: 1, Double: 2, Triple: 3 };
+
+    function syncCapacity(typeId, capId) {
+        const type = document.getElementById(typeId).value;
+        const capInput = document.getElementById(capId);
+        if (capacityMap[type] !== undefined) {
+            capInput.value = capacityMap[type];
+            capInput.readOnly = true;
+        } else {
+            // Dormitory — allow custom
+            capInput.readOnly = false;
+            capInput.focus();
+        }
+    }
+
+    // Init add modal on load
+    document.addEventListener('DOMContentLoaded', function() {
+        syncCapacity('add_room_type', 'add_max_capacity');
+    });
+
+    function openEditModal(roomNo, capacity, floor, type) {
+        document.getElementById('edit_room_no_display').value = roomNo;
+        document.getElementById('edit_floor_no').value = floor;
+        document.getElementById('editForm').action = '/room/rooms/edit/' + roomNo;
+
+        // Set room type dropdown
+        const typeSelect = document.getElementById('edit_room_type');
+        typeSelect.value = type;
+
+        // Set capacity (and respect readonly logic)
+        const capInput = document.getElementById('edit_max_capacity');
+        capInput.value = capacity;
+        if (capacityMap[type] !== undefined) {
+            capInput.readOnly = true;
+        } else {
+            capInput.readOnly = false;
+        }
+
+        new bootstrap.Modal(document.getElementById('editModal')).show();
+    }
+</script>
 </body>
 </html>
