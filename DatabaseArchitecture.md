@@ -1,150 +1,181 @@
-# Hostel Management System — Complete Database Documentation & ER Diagrams
+# Hostel Management System — Complete Database Architecture & Technical Reference
 
-This document provides a comprehensive technical overview of the PostgreSQL database powering the **Hostel Management System**, detailing schemas, entity relationships, triggers, views, and data flow.
+This document provides a comprehensive, production-grade technical specification of the PostgreSQL database powering the **Hostel Management System**. It documents all **33 relational tables**, **15 database triggers**, **7 analytical views**, complete **Entity-Relationship (ER) diagrams**, schema data dictionaries, and architectural constraints.
 
 ---
 
-## 1. System Architecture Overview
+## 1. System Architecture & Relational Topology
 
-The system is designed in a **modular relational architecture** structured across three main subsystems, unified by the central `Students` entity:
+The database follows a modular relational model running on **PostgreSQL**. The central root entity of the system is `Students`, which anchors three operational modules:
 
-1. **Core Hostel Management Module** (Student profiles, room allocations, occupancy tracking, leave logging, refunds, complaints, visitors, and hostel fee payments).
-2. **Mess Management Module** (Menu planning, inventory tracking, recipe requirements, meal consumption logging, staff payroll, waste management, and mess fee rebates).
-3. **Sports Facility Module** (Equipment inventory, issuing/returns tracking, and automatic late-return fine generation).
+```
+                                  ┌───────────────────────────┐
+                                  │         Students          │
+                                  │   (Central Entity, PK)    │
+                                  └─────────────┬─────────────┘
+                                                │
+                 ┌──────────────────────────────┼──────────────────────────────┐
+                 │                              │                              │
+                 ▼                              ▼                              ▼
+    ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
+    │   Hostel Core Module    │    │  Mess Facility Module   │    │  Sports Facility Module │
+    ├─────────────────────────┤    ├─────────────────────────┤    ├─────────────────────────┤
+    │ • Rooms & Capacity      │    │ • Pantry Inventory      │    │ • Sports Inventory      │
+    │ • Student Allocations   │    │ • Dishes & Recipes      │    │ • Equipment Issuing     │
+    │ • Real-time Occupancy   │    │ • Weekly Menus & Logs   │    │ • Return Registration   │
+    │ • Leave & Attendance    │    │ • Vendors & Procurement │    │ • Automated Overdue     │
+    │ • Automated Refunds     │    │ • Dining Fees & Rebates │    │   Fine Calculation      │
+    │ • Complaints & Tickets  │    │ • Staff Payroll         │    │                         │
+    │ • Visitor Logs          │    │ • Waste & Scrap Audit   │    │                         │
+    │ • Semester Fee Payments │    │ • Student Feedback      │    │                         │
+    │ • Relocation Audit Log  │    │ • Automated Stock Alerts│    │                         │
+    └─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
+```
+
+### Key Architectural Characteristics
+- **Engine**: PostgreSQL 14+ with full ACID compliance and transactional DDL.
+- **Connection Architecture**: Node.js connection pooling via `pg.Pool` (10 max concurrent connections, 30s idle timeout).
+- **Relational Integrity**: Strict Foreign Key constraints backed by `ON DELETE CASCADE` for clean student offboarding.
+- **Server-Side Automation**: 15 stored procedure triggers handling capacity verification, automated stock deduction, fine computation, and rebate accounting directly at the database engine level.
 
 ---
 
 ## 2. Complete Entity-Relationship (ER) Diagrams
 
-### 2.1 Core Hostel Module ER Diagram
+### 2.1 Core Hostel Module
 
 ```mermaid
 erDiagram
     STUDENTS ||--o{ ROOM_ALLOCATIONS : "allocates"
-    STUDENTS ||--o{ LEAVE_LOG : "requests"
+    STUDENTS ||--o{ LEAVE_LOG : "logs absence"
     STUDENTS ||--o| LEAVE_SUMMARY : "aggregates"
-    STUDENTS ||--o{ REFUNDS : "receives"
-    STUDENTS ||--o{ COMPLAINTS : "files"
-    STUDENTS ||--o{ PAYMENTS : "pays"
+    STUDENTS ||--o{ REFUNDS : "receives rebate"
+    STUDENTS ||--o{ COMPLAINTS : "files ticket"
+    STUDENTS ||--o{ PAYMENTS : "submits fee"
     STUDENTS ||--o{ VISITORS : "visited by"
-    STUDENTS ||--o{ ALLOCATION_HISTORY : "tracks history"
-    ROOMS ||--o{ ROOM_ALLOCATIONS : "contains"
-    ROOMS ||--o| ROOM_OCCUPANCY : "monitored by"
+    STUDENTS ||--o{ ALLOCATION_HISTORY : "tracks transfers"
+
+    ROOMS ||--o{ ROOM_ALLOCATIONS : "houses"
+    ROOMS ||--o| ROOM_OCCUPANCY : "monitored count"
     ROOMS ||--o{ COMPLAINTS : "located at"
 
     STUDENTS {
-        varchar bt_no PK
-        varchar name
-        int year
-        varchar phone UK
-        varchar email UK
-        varchar branch
-        timestamp created_at
+        varchar bt_no PK "Roll Number (e.g. BT24CSE088)"
+        varchar name "Student Full Name"
+        int year "Academic Year (1 to 4)"
+        varchar phone UK "10-Digit Mobile"
+        varchar email UK "Institutional Email"
+        varchar branch "Department (CSE, ECE, etc.)"
+        timestamp created_at "Registration Timestamp"
     }
 
     ROOMS {
-        int room_no PK
-        int max_capacity
-        int floor_no
-        varchar room_type
+        int room_no PK "Room Identifier (e.g. 101-550)"
+        int max_capacity "Capacity Limit (1, 2, or 3)"
+        int floor_no "Floor Number (1 to 5)"
+        varchar room_type "Single / Double / Triple"
     }
 
     ROOM_ALLOCATIONS {
-        int alloc_id PK
-        varchar bt_no FK
-        int room_no FK
-        date allocation_date
+        int alloc_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        int room_no FK "References Rooms(room_no)"
+        date allocation_date "Check-in Date"
     }
 
     ROOM_OCCUPANCY {
-        int room_no PK, FK
-        int current_count
+        int room_no PK, FK "References Rooms(room_no)"
+        int current_count "Real-time Occupied Beds"
     }
 
     LEAVE_LOG {
-        int leave_id PK
-        varchar bt_no FK
-        date from_date
-        date to_date
-        int days
+        int leave_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        date from_date "Start Date"
+        date to_date "End Date"
+        int days "Duration in Days"
     }
 
     LEAVE_SUMMARY {
-        varchar bt_no PK, FK
-        varchar name
-        int total_days
+        varchar bt_no PK, FK "References Students(bt_no)"
+        varchar name "Denormalized Student Name"
+        int total_days "Cumulative Leave Days"
     }
 
     REFUNDS {
-        int refund_id PK
-        varchar bt_no FK
-        varchar name
-        numeric refund_amount
+        int refund_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        varchar name "Student Name"
+        numeric refund_amount "total_days * refund_per_day"
     }
 
     COMPLAINTS {
-        int complaint_id PK
-        varchar bt_no FK
-        int room_no FK
-        varchar issue_type
-        text description
-        varchar status
-        timestamp created_at
-        timestamp resolved_at
+        int complaint_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        int room_no FK "References Rooms(room_no)"
+        varchar issue_type "Electrical, Plumbing, etc."
+        text description "Problem Description"
+        varchar status "Pending / In Progress / Resolved"
+        timestamp created_at "Logged At"
+        timestamp resolved_at "Closed At"
     }
 
     PAYMENTS {
-        int payment_id PK
-        varchar bt_no FK
-        numeric amount
-        date payment_date
-        varchar status
+        int payment_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        numeric amount "Fee in INR"
+        date payment_date "Payment Date"
+        varchar status "Paid / Pending"
     }
 
     VISITORS {
-        int visitor_id PK
-        varchar student_bt_no FK
-        varchar visitor_name
-        date visit_date
-        time in_time
-        time out_time
-        varchar purpose
+        int visitor_id PK "Auto-increment ID"
+        varchar student_bt_no FK "References Students(bt_no)"
+        varchar visitor_name "Guest Name"
+        date visit_date "Entry Date"
+        time in_time "Check-in Time"
+        time out_time "Check-out Time"
+        varchar purpose "Visit Purpose"
     }
 
     ALLOCATION_HISTORY {
-        int history_id PK
-        varchar bt_no FK
-        int old_room
-        int new_room
-        date from_date
-        date to_date
+        int history_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        int old_room "Prior Room"
+        int new_room "New Room"
+        date from_date "Start of Tenancy"
+        date to_date "Transfer Date"
+    }
+
+    HOSTEL_SETTINGS {
+        varchar setting_name PK "Configuration Key"
+        numeric value "Parameter Value"
     }
 ```
 
 ---
 
-### 2.2 Mess Management Module ER Diagram
+### 2.2 Mess Management Module
 
 ```mermaid
 erDiagram
-    STUDENTS ||--o{ MESS_FEES : "pays"
-    STUDENTS ||--o{ MESS_LEAVES : "takes leave"
-    STUDENTS ||--o| MESS_REFUNDS : "entitled to"
-    STUDENTS ||--o{ MESS_FEEDBACK : "submits"
-    
+    STUDENTS ||--o{ MESS_FEES : "pays dues"
+    STUDENTS ||--o{ MESS_LEAVES : "logs mess leave"
+    STUDENTS ||--o| MESS_REFUNDS : "receives rebate"
+    STUDENTS ||--o{ MESS_FEEDBACK : "submits reviews"
+
     MENU_DISHES ||--o{ WEEKLY_MENU : "scheduled in"
-    MENU_DISHES ||--o{ DISH_REQUIREMENTS : "needs ingredients"
-    MENU_DISHES ||--o{ MEAL_LOG : "served as"
-    MENU_DISHES ||--o{ MESS_FEEDBACK : "rated by"
-    
-    INVENTORY ||--o{ DISH_REQUIREMENTS : "used in recipe"
-    INVENTORY ||--o{ PURCHASE_ITEMS : "stocked from"
-    INVENTORY ||--o{ WASTE_LOG : "recorded in"
-    
+    MENU_DISHES ||--o{ DISH_REQUIREMENTS : "recipe ingredients"
+    MENU_DISHES ||--o{ MEAL_LOG : "recorded in service"
+    MENU_DISHES ||--o{ MESS_FEEDBACK : "rated in"
+
+    INVENTORY ||--o{ DISH_REQUIREMENTS : "used as ingredient"
+    INVENTORY ||--o{ PURCHASE_ITEMS : "received through PO"
+    INVENTORY ||--o{ WASTE_LOG : "tracked as scrap"
+
     VENDORS ||--o{ PURCHASE_ORDERS : "supplies"
     PURCHASE_ORDERS ||--o{ PURCHASE_ITEMS : "contains"
-    
-    STAFF_ROLES ||--o{ MESS_STAFF : "categorizes"
+    STAFF_ROLES ||--o{ MESS_STAFF : "assigns grade"
 
     MESS_FEES {
         int fee_id PK
@@ -172,19 +203,6 @@ erDiagram
         timestamp last_updated
     }
 
-    MENU_DISHES {
-        int dish_id PK
-        varchar dish_name UK
-        varchar meal_type
-    }
-
-    WEEKLY_MENU {
-        int menu_id PK
-        varchar day_name
-        varchar meal_type
-        int dish_id FK
-    }
-
     INVENTORY {
         int item_id PK
         varchar item_name UK
@@ -193,6 +211,12 @@ erDiagram
         numeric cost_per_unit
         numeric total_cost
         int week_no
+    }
+
+    MENU_DISHES {
+        int dish_id PK
+        varchar dish_name UK
+        varchar meal_type
     }
 
     DISH_REQUIREMENTS {
@@ -210,6 +234,54 @@ erDiagram
         varchar remarks
     }
 
+    VENDORS {
+        int vendor_id PK
+        varchar vendor_name UK
+        varchar phone
+        varchar item_speciality
+    }
+
+    PURCHASE_ORDERS {
+        int po_id PK
+        int vendor_id FK
+        date order_date
+        varchar status
+        numeric total_amount
+    }
+
+    PURCHASE_ITEMS {
+        int po_item_id PK
+        int po_id FK
+        int item_id FK
+        numeric qty
+        numeric price
+    }
+
+    WASTE_LOG {
+        int waste_id PK
+        int item_id FK
+        numeric qty
+        date waste_date
+        varchar reason
+    }
+
+    MESS_FEEDBACK {
+        int feedback_id PK
+        varchar bt_no FK
+        int dish_id FK
+        int rating
+        text comment_text
+        date feedback_date
+    }
+
+    MESS_EXPENSES {
+        int expense_id PK
+        varchar type
+        numeric amount
+        date expense_date
+        text remarks
+    }
+
     STAFF_ROLES {
         int role_id PK
         varchar role_name UK
@@ -224,171 +296,556 @@ erDiagram
         date joining_date
         varchar status
     }
+
+    ALERTS {
+        int alert_id PK
+        varchar alert_type
+        varchar message_text
+        timestamp created_at
+        varchar is_resolved
+    }
+
+    MESS_SETTINGS {
+        varchar setting_name PK
+        numeric value
+    }
 ```
 
 ---
 
-### 2.3 Sports Facility Module ER Diagram
+### 2.3 Sports Facility Module
 
 ```mermaid
 erDiagram
-    STUDENTS ||--o{ SPORTS_ISSUES : "borrows"
+    STUDENTS ||--o{ SPORTS_ISSUES : "checks out"
     STUDENTS ||--o{ SPORTS_FINES : "incurs fine"
-    SPORTS_ITEMS ||--o{ SPORTS_ISSUES : "item lent"
-    SPORTS_ISSUES ||--o| SPORTS_FINES : "late return trigger"
+    SPORTS_ITEMS ||--o{ SPORTS_ISSUES : "issued item"
+    SPORTS_ISSUES ||--o| SPORTS_FINES : "generates penalty on return"
 
     SPORTS_ITEMS {
-        int item_id PK
-        varchar item_name UK
-        int total_quantity
-        int available_quantity
-        numeric fine_per_day
-        numeric cost_per_item
-        numeric total_cost
+        int item_id PK "Auto-increment ID"
+        varchar item_name UK "Equipment Name"
+        int total_quantity "Total Hostel Stock"
+        int available_quantity "Stock on Shelf"
+        numeric fine_per_day "Overdue Fine (INR/day)"
+        numeric cost_per_item "Replacement Cost"
+        numeric total_cost "Generated Valuation"
     }
 
     SPORTS_ISSUES {
-        int issue_id PK
-        varchar bt_no FK
-        int item_id FK
-        int quantity
-        date issue_date
-        date due_date
-        date return_date
-        varchar status
+        int issue_id PK "Auto-increment ID"
+        varchar bt_no FK "References Students(bt_no)"
+        int item_id FK "References Sports_Items(item_id)"
+        int quantity "Items Issued"
+        date issue_date "Checkout Date"
+        date due_date "Expected Return Date"
+        date return_date "Actual Return Date"
+        varchar status "Issued / Returned"
     }
 
     SPORTS_FINES {
-        int fine_id PK
-        int issue_id UK, FK
-        varchar bt_no FK
-        numeric fine_amount
-        date created_date
+        int fine_id PK "Auto-increment ID"
+        int issue_id UK, FK "References Sports_Issues(issue_id)"
+        varchar bt_no FK "References Students(bt_no)"
+        numeric fine_amount "overdue_days * fine_per_day"
+        date created_date "Assessment Date"
     }
 ```
 
 ---
 
-## 3. Detailed Data Dictionary
+## 3. Complete Data Dictionary (All 33 Tables)
 
-### 3.1 Core Hostel Tables
+### 3.1 Core Hostel Management Tables (12 Tables)
 
-| Table | Primary Key | Foreign Keys | Description |
+#### 1. `Students`
+Core demographic, academic, and contact directory of enrolled students.
+| Column | Type | Constraints | Description |
 |---|---|---|---|
-| `Students` | `bt_no` (Roll No) | None | Core table containing student biographical and academic profile. |
-| `Rooms` | `room_no` | None | Physical rooms with capacity limits and floor numbers. |
-| `Room_Allocations` | `alloc_id` | `bt_no` → `Students`, `room_no` → `Rooms` | Active and historical student-to-room mappings. |
-| `Room_Occupancy` | `room_no` | `room_no` → `Rooms` | Cache table tracking real-time occupied beds. |
-| `Leave_Log` | `leave_id` | `bt_no` → `Students` | Logs each student absence window with total days. |
-| `Leave_Summary` | `bt_no` | `bt_no` → `Students` | Aggregated leave count per student. |
-| `Hostel_Settings` | `setting_name` | None | Key-value configuration (e.g. `leave_refund_per_day = 100`). |
-| `Refunds` | `refund_id` | `bt_no` → `Students` | Auto-calculated mess/hostel fee refunds based on approved leaves. |
-| `Complaints` | `complaint_id` | `bt_no` → `Students`, `room_no` → `Rooms` | Maintenance and facility tickets with tracking statuses. |
-| `Visitors` | `visitor_id` | `student_bt_no` → `Students` | In/out timestamp log of hostel guests. |
-| `Payments` | `payment_id` | `bt_no` → `Students` | Hostel fee billing and payment receipt records. |
-| `Allocation_History` | `history_id` | `bt_no` → `Students` | Audit trail of room relocations over time. |
+| `bt_no` | `VARCHAR(20)` | `PRIMARY KEY` | Student Roll Number (e.g. `BT24CSE088`) |
+| `name` | `VARCHAR(255)` | `NOT NULL` | Full Name |
+| `year` | `INT` | `NOT NULL` | Academic Year (1, 2, 3, or 4) |
+| `phone` | `VARCHAR(15)` | `UNIQUE, NOT NULL` | 10-digit mobile number |
+| `email` | `VARCHAR(255)` | `UNIQUE, NOT NULL` | Student email address |
+| `branch` | `VARCHAR(100)` | `NOT NULL` | Academic branch (`CSE`, `ECE`, `CSA`, etc.) |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Profile creation timestamp |
+
+#### 2. `Rooms`
+Physical room inventory across hostel floors.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `room_no` | `INT` | `PRIMARY KEY` | Physical room number (e.g. 101–550) |
+| `max_capacity` | `INT` | `NOT NULL` | Capacity limit (1 for Single, 2 for Double, 3 for Triple) |
+| `floor_no` | `INT` | `NOT NULL` | Floor number (1 to 5) |
+| `room_type` | `VARCHAR(50)` | Nullable | Type category (`Single`, `Double`, `Triple`) |
+
+#### 3. `Room_Allocations`
+Active and current room tenancies.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `alloc_id` | `SERIAL` | `PRIMARY KEY` | Allocation transaction ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Assigned student roll number |
+| `room_no` | `INT` | `FK -> Rooms(room_no) ON DELETE CASCADE` | Assigned room number |
+| `allocation_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date room was allocated |
+
+#### 4. `Room_Occupancy`
+Trigger-maintained real-time count of beds filled per room.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `room_no` | `INT` | `PRIMARY KEY, FK -> Rooms(room_no) ON DELETE CASCADE` | Room identifier |
+| `current_count` | `INT` | `DEFAULT 0` | Real-time occupied beds |
+
+#### 5. `Allocation_History`
+Audit log recording student room transfers and prior tenancies.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `history_id` | `SERIAL` | `PRIMARY KEY` | Record ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `old_room` | `INT` | `NOT NULL` | Previous room vacated |
+| `new_room` | `INT` | `NOT NULL` | Newly assigned room |
+| `from_date` | `DATE` | `NOT NULL` | Start date in previous room |
+| `to_date` | `DATE` | `NOT NULL` | Transfer / exit date |
+
+#### 6. `Leave_Log`
+Individual student leave applications with dates and duration.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `leave_id` | `SERIAL` | `PRIMARY KEY` | Leave entry ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `from_date` | `DATE` | `NOT NULL` | Departure date |
+| `to_date` | `DATE` | `NOT NULL` | Expected return date |
+| `days` | `INT` | `NOT NULL` | Number of days absent |
+
+#### 7. `Leave_Summary`
+Trigger-maintained aggregate total of absent days per student.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `bt_no` | `VARCHAR(20)` | `PRIMARY KEY, FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `name` | `VARCHAR(255)` | `NOT NULL` | Cached student name |
+| `total_days` | `INT` | `DEFAULT 0` | Cumulative absent days |
+
+#### 8. `Hostel_Settings`
+Key-value configuration store for hostel rules and financial rates.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `setting_name` | `VARCHAR(100)` | `PRIMARY KEY` | Configuration key (e.g. `leave_refund_per_day`) |
+| `value` | `DECIMAL(10,2)` | `NOT NULL` | Daily rebate rate (e.g. `100.00`) |
+
+#### 9. `Refunds`
+Trigger-maintained rebate balances credited to students based on approved leaves.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `refund_id` | `SERIAL` | `PRIMARY KEY` | Refund record ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `name` | `VARCHAR(255)` | `NOT NULL` | Student name |
+| `refund_amount` | `DECIMAL(10,2)` | `DEFAULT 0` | Computed refund amount in INR |
+
+#### 10. `Complaints`
+Facility and maintenance ticket tracking system.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `complaint_id` | `SERIAL` | `PRIMARY KEY` | Ticket identifier |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Filing student |
+| `room_no` | `INT` | `FK -> Rooms(room_no) ON DELETE CASCADE` | Room needing repair |
+| `issue_type` | `VARCHAR(50)` | `NOT NULL` | Category (`Electrical`, `Plumbing`, `Furniture`, `Internet`, etc.) |
+| `description` | `TEXT` | `NOT NULL` | Ticket issue narrative |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Workflow state (`Pending`, `In Progress`, `Resolved`) |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Ticket submission timestamp |
+| `resolved_at` | `TIMESTAMP` | Nullable | Ticket resolution timestamp |
+
+#### 11. `Visitors`
+Physical guest entry and exit register.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `visitor_id` | `SERIAL` | `PRIMARY KEY` | Log entry ID |
+| `student_bt_no`| `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Host student |
+| `visitor_name` | `VARCHAR(255)` | `NOT NULL` | Guest name |
+| `visit_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date of visit |
+| `in_time` | `TIME` | `NOT NULL` | Check-in timestamp |
+| `out_time` | `TIME` | Nullable | Check-out timestamp |
+| `purpose` | `VARCHAR(255)` | Nullable | Visit reason (`Parents Visit`, `Friend Visit`, etc.) |
+
+#### 12. `Payments`
+Semester hostel boarding and lodging fee register.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `payment_id` | `SERIAL` | `PRIMARY KEY` | Payment transaction ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `amount` | `DECIMAL(10,2)` | `NOT NULL` | Fee amount in INR |
+| `payment_date` | `DATE` | Nullable | Transaction date (null if pending) |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Payment state (`Paid`, `Pending`) |
 
 ---
 
-### 3.2 Mess Management Tables
+### 3.2 Mess Facility & Procurement Tables (18 Tables)
 
-| Table | Primary Key | Foreign Keys | Description |
+#### 13. `Mess_Settings`
+Configuration settings for dining operations.
+| Column | Type | Constraints | Description |
 |---|---|---|---|
-| `Mess_Settings` | `setting_name` | None | Config parameters (e.g. `refund_per_day = 100`). |
-| `Mess_Fees` | `fee_id` | `bt_no` → `Students` | Monthly mess dues billing and payment statuses. |
-| `Mess_Leaves` | `leave_id` | `bt_no` → `Students` | Student leave applications submitted to mess authorities. |
-| `Mess_Refunds` | `refund_id` | `bt_no` → `Students` | Net rebate balances owed to students for absent days. |
-| `Menu_Dishes` | `dish_id` | None | Master catalog of dishes and categorized meal types. |
-| `Weekly_Menu` | `menu_id` | `dish_id` → `Menu_Dishes` | Scheduled recurring weekly menu (Mon–Sun). |
-| `Inventory` | `item_id` | None | Raw ingredient pantry stock levels, units, and valuation. |
-| `Dish_Requirements`| `req_id` | `dish_id`, `item_id` | Recipe bill-of-materials defining ingredient quantities per dish. |
-| `Meal_Log` | `log_id` | `dish_id` → `Menu_Dishes` | Record of actual meals served to residents. |
-| `Staff_Roles` | `role_id` | None | Job descriptions and pay grades (Cook, Helper, Manager). |
-| `Mess_Staff` | `staff_id` | `role_id` → `Staff_Roles` | Employee directory and contact information. |
-| `Vendors` | `vendor_id` | None | External suppliers providing grocery and provisions. |
-| `Purchase_Orders` | `po_id` | `vendor_id` → `Vendors` | Procurement orders submitted to suppliers. |
-| `Purchase_Items` | `po_item_id` | `po_id`, `item_id` | Line-item breakdown of purchased inventory goods. |
-| `Waste_Log` | `waste_id` | `item_id` → `Inventory` | Spoilage and scrap quantity records for cost tracking. |
-| `Mess_Feedback` | `feedback_id` | `bt_no`, `dish_id` | 1–5 star ratings and reviews submitted by students. |
-| `Alerts` | `alert_id` | None | Automated system warnings (e.g., Low Stock). |
+| `setting_name` | `VARCHAR(100)` | `PRIMARY KEY` | Setting key (e.g. `refund_per_day`) |
+| `value` | `DECIMAL(10,2)` | `NOT NULL` | Rate value (e.g. `100.00`) |
+
+#### 14. `Mess_Fees`
+Monthly mess billing ledger for students.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `fee_id` | `SERIAL` | `PRIMARY KEY` | Bill identifier |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `month` | `INT` | `NOT NULL` | Billing month (1–12) |
+| `year` | `INT` | `NOT NULL` | Billing year (e.g. 2026) |
+| `amount` | `DECIMAL(10,2)` | `NOT NULL` | Monthly mess fee (e.g. 4500.00) |
+| `payment_date` | `DATE` | Nullable | Settlement date |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Dues status (`Paid`, `Pending`) |
+
+#### 15. `Mess_Leaves`
+Dining absence requests submitted by residents.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `leave_id` | `SERIAL` | `PRIMARY KEY` | Leave entry ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
+| `from_date` | `DATE` | `NOT NULL` | Leave start date |
+| `to_date` | `DATE` | `NOT NULL` | Leave end date |
+| `days` | `INT` | `NOT NULL` | Duration in days |
+
+#### 16. `Mess_Refunds`
+Rebate credit ledger tracking net mess rebates owed to students.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `refund_id` | `SERIAL` | `PRIMARY KEY` | Refund ID |
+| `bt_no` | `VARCHAR(20)` | `UNIQUE, FK -> Students(bt_no) ON DELETE CASCADE`| Student roll number |
+| `total_days` | `INT` | `DEFAULT 0` | Total absent days credited |
+| `refund_amount`| `DECIMAL(10,2)` | `DEFAULT 0` | Net rebate in INR |
+| `last_updated` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Last trigger recalculation time |
+
+#### 17. `Menu_Dishes`
+Master dish catalogue categorized by meal window.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `dish_id` | `SERIAL` | `PRIMARY KEY` | Dish identifier |
+| `dish_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Dish title (e.g. `Paneer Butter Masala`) |
+| `meal_type` | `VARCHAR(50)` | `NOT NULL` | Category (`Breakfast`, `Lunch`, `Snacks`, `Dinner`) |
+
+#### 18. `Weekly_Menu`
+Recurring weekly mess timetable.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `menu_id` | `SERIAL` | `PRIMARY KEY` | Schedule slot ID |
+| `day_name` | `VARCHAR(20)` | `NOT NULL` | Day (`Monday` to `Sunday`) |
+| `meal_type` | `VARCHAR(20)` | `NOT NULL` | Meal slot |
+| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id)` | Scheduled dish |
+
+#### 19. `Inventory`
+Raw kitchen provision storage and current warehouse stock.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `item_id` | `SERIAL` | `PRIMARY KEY` | Inventory item identifier |
+| `item_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Ingredient name (e.g. `Toor Dal`) |
+| `quantity` | `DECIMAL(10,2)` | `NOT NULL` | Current stock count on shelf |
+| `unit` | `VARCHAR(20)` | `NOT NULL` | Unit of measure (`kg`, `litre`, `dozen`, `packet`) |
+| `cost_per_unit`| `DECIMAL(10,2)` | `NOT NULL` | Unit wholesale price |
+| `total_cost` | `DECIMAL(10,2)` | `DEFAULT 0` | Total valuation (`quantity * cost_per_unit`) |
+| `week_no` | `INT` | Nullable | Procurement cycle week number |
+
+#### 20. `Dish_Requirements`
+Bill-of-materials recipe specifications defining raw ingredients required per dish.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `req_id` | `SERIAL` | `PRIMARY KEY` | Requirement recipe ID |
+| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id) ON DELETE CASCADE`| Dish being cooked |
+| `item_id` | `INT` | `FK -> Inventory(item_id) ON DELETE CASCADE` | Raw ingredient required |
+| `required_qty` | `DECIMAL(10,2)` | `NOT NULL` | Quantity needed per standard dining batch |
+
+#### 21. `Meal_Log`
+Record of actual meals prepared and served in the dining hall.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `log_id` | `SERIAL` | `PRIMARY KEY` | Service event ID |
+| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id) ON DELETE CASCADE`| Dish prepared |
+| `served_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date cooked and served |
+| `meal_type` | `VARCHAR(20)` | `NOT NULL` | Meal category |
+| `remarks` | `VARCHAR(255)` | Nullable | Service commentary (`Served on time`, etc.) |
+
+#### 22. `Staff_Roles`
+Mess employee job roles and compensation structure.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `role_id` | `SERIAL` | `PRIMARY KEY` | Role identifier |
+| `role_name` | `VARCHAR(50)` | `UNIQUE, NOT NULL` | Job title (`Head Chef`, `Helper`, `Manager`) |
+| `salary_per_person`| `DECIMAL(10,2)` | `NOT NULL` | Monthly salary in INR |
+
+#### 23. `Mess_Staff`
+Employee roster and contact directory.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `staff_id` | `SERIAL` | `PRIMARY KEY` | Worker ID |
+| `name` | `VARCHAR(255)` | `NOT NULL` | Full Name |
+| `role_id` | `INT` | `FK -> Staff_Roles(role_id)` | Assigned job grade |
+| `phone` | `VARCHAR(15)` | Nullable | Contact mobile |
+| `joining_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date employment began |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Active'` | Status (`Active`, `Inactive`) |
+
+#### 24. `Vendors`
+Registered wholesale merchants providing raw supplies.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `vendor_id` | `SERIAL` | `PRIMARY KEY` | Merchant ID |
+| `vendor_name` | `VARCHAR(255)` | `UNIQUE, NOT NULL` | Business name |
+| `phone` | `VARCHAR(15)` | Nullable | Merchant phone |
+| `item_speciality`| `VARCHAR(100)`| Nullable | Specialty domain (`Dairy`, `Grains`, `LPG`) |
+
+#### 25. `Purchase_Orders`
+Procurement batches placed with external vendors.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `po_id` | `SERIAL` | `PRIMARY KEY` | Purchase order ID |
+| `vendor_id` | `INT` | `FK -> Vendors(vendor_id) ON DELETE CASCADE` | Supplying vendor |
+| `order_date` | `DATE` | `DEFAULT CURRENT_DATE` | Order placement date |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Delivered'` | Shipment status (`Delivered`, `Pending`) |
+| `total_amount` | `DECIMAL(10,2)` | `NOT NULL` | Order invoice total in INR |
+
+#### 26. `Purchase_Items`
+Line items detailing individual provisions within a purchase order.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `po_item_id` | `SERIAL` | `PRIMARY KEY` | Line item identifier |
+| `po_id` | `INT` | `FK -> Purchase_Orders(po_id) ON DELETE CASCADE`| Parent PO |
+| `item_id` | `INT` | `FK -> Inventory(item_id) ON DELETE CASCADE` | Raw pantry ingredient |
+| `qty` | `DECIMAL(10,2)` | `NOT NULL` | Purchased quantity |
+| `price` | `DECIMAL(10,2)` | `NOT NULL` | Wholesale unit price paid |
+
+#### 27. `Waste_Log`
+Pantry spoilage, scrap, and expiration audit log.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `waste_id` | `SERIAL` | `PRIMARY KEY` | Waste record ID |
+| `item_id` | `INT` | `FK -> Inventory(item_id) ON DELETE CASCADE` | Spoilage item |
+| `qty` | `DECIMAL(10,2)` | `NOT NULL` | Quantity lost |
+| `waste_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date written off |
+| `reason` | `VARCHAR(255)` | Nullable | Scrap reason (`Spoiled`, `Leftovers`, `Expired`) |
+
+#### 28. `Mess_Feedback`
+Student satisfaction reviews and quality ratings per dish.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `feedback_id` | `SERIAL` | `PRIMARY KEY` | Review record ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Reviewing student |
+| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id) ON DELETE CASCADE`| Dish reviewed |
+| `rating` | `INT` | `CHECK (rating BETWEEN 1 AND 5)` | Star rating score (1 to 5) |
+| `comment_text` | `TEXT` | Nullable | Qualitative feedback description |
+| `feedback_date`| `DATE` | `DEFAULT CURRENT_DATE` | Review date |
+
+#### 29. `Mess_Expenses`
+Daily and monthly operational mess overheads.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `expense_id` | `SERIAL` | `PRIMARY KEY` | Expense record ID |
+| `type` | `VARCHAR(100)` | `NOT NULL` | Category (`Vegetables`, `Dairy`, `LPG Fuel`, etc.) |
+| `amount` | `DECIMAL(10,2)` | `NOT NULL` | Expense invoice total in INR |
+| `expense_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date occurred |
+| `remarks` | `TEXT` | Nullable | Context notes |
+
+#### 30. `Alerts`
+Trigger-generated system alerts for warehouse monitoring.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `alert_id` | `SERIAL` | `PRIMARY KEY` | Alert notification ID |
+| `alert_type` | `VARCHAR(50)` | `NOT NULL` | Alert category (`Low Stock`) |
+| `message_text` | `VARCHAR(255)` | `NOT NULL` | Alert detail description |
+| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Alert generated timestamp |
+| `is_resolved` | `VARCHAR(10)` | `DEFAULT 'No'` | Resolution flag (`Yes`, `No`) |
 
 ---
 
-### 3.3 Sports Facility Tables
+### 3.3 Sports Facility Tables (3 Tables)
 
-| Table | Primary Key | Foreign Keys | Description |
+#### 31. `Sports_Items`
+Master sports gear catalog and stock inventory.
+| Column | Type | Constraints | Description |
 |---|---|---|---|
-| `Sports_Items` | `item_id` | None | Athletic gear inventory, rental rates, and stock. |
-| `Sports_Issues` | `issue_id` | `bt_no` → `Students`, `item_id` → `Sports_Items` | Issue register logging checkout and return dates. |
-| `Sports_Fines` | `fine_id` | `issue_id`, `bt_no` → `Students` | Late return penalty fees automatically assessed. |
+| `item_id` | `SERIAL` | `PRIMARY KEY` | Equipment item ID |
+| `item_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Gear name (`Cricket Bat`, `Football`, etc.) |
+| `total_quantity`| `INT` | `NOT NULL` | Total inventory owned |
+| `available_quantity`| `INT` | `NOT NULL` | Quantity available on shelf |
+| `fine_per_day` | `DECIMAL(10,2)` | `DEFAULT 0` | Late fine rate (INR/day) |
+| `cost_per_item`| `DECIMAL(10,2)` | `DEFAULT 0` | Replacement unit cost |
+| `total_cost` | `DECIMAL(10,2)` | `GENERATED ALWAYS AS (total_quantity * cost_per_item) STORED` | Auto-computed asset value |
+
+#### 32. `Sports_Issues`
+Checkout registry for student sports equipment loans.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `issue_id` | `SERIAL` | `PRIMARY KEY` | Issue transaction ID |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Borrowing student |
+| `item_id` | `INT` | `FK -> Sports_Items(item_id) ON DELETE CASCADE`| Borrowed item |
+| `quantity` | `INT` | `DEFAULT 1, NOT NULL` | Number of units issued |
+| `issue_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date checked out |
+| `due_date` | `DATE` | `NOT NULL` | Expected return date |
+| `return_date` | `DATE` | Nullable | Actual return date |
+| `status` | `VARCHAR(20)` | `DEFAULT 'Issued'` | Checkout state (`Issued`, `Returned`) |
+
+#### 33. `Sports_Fines`
+Trigger-generated penalty fees assessed for overdue equipment returns.
+| Column | Type | Constraints | Description |
+|---|---|---|---|
+| `fine_id` | `SERIAL` | `PRIMARY KEY` | Fine assessment ID |
+| `issue_id` | `INT` | `UNIQUE, FK -> Sports_Issues(issue_id) ON DELETE CASCADE` | Associated checkout record |
+| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Liable student |
+| `fine_amount` | `DECIMAL(10,2)` | `NOT NULL` | Computed fine (`overdue_days * fine_per_day`) |
+| `created_date` | `DATE` | `DEFAULT CURRENT_DATE` | Fine assessment date |
 
 ---
 
-## 4. Database Triggers & Business Logic Automation
+## 4. Database Triggers & Business Logic Automation (All 15 Triggers)
 
-PostgreSQL triggers automate critical integrity and accounting tasks without requiring extra application code:
+The database engine enforces critical validation and accounting rules through 15 stored procedures:
 
 ```
-[Student Request] ──► [Leave_Log INSERT]
-                             │
-                             ▼ (Trigger: leave_insert)
-                      [Leave_Summary UPDATE / INSERT]
-                             │
-                             ▼ (Trigger: refund_insert / refund_update)
-                      [Refunds UPDATE / INSERT] (Days × Daily Rate)
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                        TRIGGER EXECUTION MATRIX                        │
+  └────────────────────────────────────────────────────────────────────────┘
+
+  1. ROOM ALLOCATION
+     Room_Allocations (BEFORE INSERT) ──► check_room_capacity
+     Room_Allocations (AFTER INSERT)  ──► update_room_occupancy
+
+  2. HOSTEL ATTENDANCE & REBATES
+     Leave_Log (AFTER INSERT)         ──► leave_insert (Upserts Leave_Summary)
+     Leave_Summary (AFTER INSERT)     ──► refund_insert (Calculates Refunds)
+     Leave_Summary (AFTER UPDATE)     ──► refund_update (Recalculates Refunds)
+
+  3. MESS DINING REBATES
+     Mess_Leaves (AFTER INSERT)       ──► mess_leave_insert (Upserts Mess_Refunds)
+     Mess_Leaves (AFTER UPDATE)       ──► mess_leave_update (Recalculates Mess_Refunds)
+     Mess_Leaves (AFTER DELETE)       ──► mess_leave_delete (Adjusts Mess_Refunds)
+     Mess_Refunds (BEFORE UPDATE)     ──► mess_refunds_timestamp (Refreshes timestamp)
+
+  4. PANTRY INVENTORY & RECIPES
+     Meal_Log (BEFORE INSERT)         ──► check_inventory_before_meal (Prevents negative stock)
+     Meal_Log (AFTER INSERT)          ──► deduct_inventory_after_meal (Auto-deducts recipe qty)
+     Inventory (AFTER UPDATE)         ──► low_stock_alert (Pushes warning if qty < 20)
+
+  5. SPORTS FACILITY
+     Sports_Issues (BEFORE INSERT)    ──► sports_check_stock (Checks availability)
+     Sports_Issues (AFTER INSERT)     ──► sports_reduce_stock (Decrements shelf stock)
+     Sports_Issues (AFTER UPDATE)     ──► sports_return_fine (Calculates overdue penalties)
 ```
 
-### 1. Capacity Enforcement (`check_room_capacity`)
-- **Event:** `BEFORE INSERT ON Room_Allocations`
-- **Behavior:** Queries `Rooms.max_capacity` and counts current allocations. If `current >= max_capacity`, the transaction aborts with: `'Room is full'`.
+### Detailed Functional Specifications
 
-### 2. Occupancy Cache Maintenance (`update_room_occupancy`)
-- **Event:** `AFTER INSERT ON Room_Allocations`
-- **Behavior:** Upserts into `Room_Occupancy`, automatically incrementing `current_count`.
-
-### 3. Leave & Refund Cascade (`leave_insert`, `refund_insert`, `refund_update`)
-- **Event:** `AFTER INSERT ON Leave_Log` & `AFTER INSERT/UPDATE ON Leave_Summary`
-- **Behavior:** Updates cumulative student absent days in `Leave_Summary` and automatically generates/updates the rebate in `Refunds` (`total_days * setting.leave_refund_per_day`).
-
-### 4. Mess Stock Protection (`check_inventory_before_meal`)
-- **Event:** `BEFORE INSERT ON Meal_Log`
-- **Behavior:** Cross-references `Dish_Requirements` with `Inventory`. If any ingredient has insufficient stock, the transaction is rejected with `'Insufficient inventory stock'`.
-
-### 5. Automated Pantry Deduction (`deduct_inventory_after_meal`)
-- **Event:** `AFTER INSERT ON Meal_Log`
-- **Behavior:** Decrements `Inventory.quantity` by recipe requirements and recalculates `total_cost`.
-
-### 6. Low Inventory Alert Generator (`low_stock_alert`)
-- **Event:** `AFTER UPDATE ON Inventory`
-- **Behavior:** When `quantity < 20`, automatically inserts a warning into `Alerts`.
-
-### 7. Sports Inventory & Fine Automation (`sports_check_stock`, `sports_reduce_stock`, `sports_return_fine`)
-- **Stock Check:** Prevents checkout if `available_quantity < requested`.
-- **Stock Decrement:** Decrements available count upon issuance.
-- **Auto Fine:** When an item is marked `'Returned'` past its `due_date`, calculates overdue days and creates a record in `Sports_Fines` (`overdue_days * fine_per_day`).
+| # | Trigger Name | Timing & Event | Target Table | Implementation Logic |
+|---|---|---|---|---|
+| 1 | `check_room_capacity` | `BEFORE INSERT` | `Room_Allocations` | Queries `Rooms.max_capacity` for the destination room and compares it with existing allocations. If `count >= max_capacity`, aborts transaction with `'Room is full'`. |
+| 2 | `update_room_occupancy` | `AFTER INSERT` | `Room_Allocations` | Automatically upserts `Room_Occupancy.current_count = current_count + 1`. |
+| 3 | `leave_insert` | `AFTER INSERT` | `Leave_Log` | Aggregates the newly added leave duration into `Leave_Summary.total_days` for that student. |
+| 4 | `refund_insert` | `AFTER INSERT` | `Leave_Summary` | Reads `Hostel_Settings.leave_refund_per_day` and inserts an initial record in `Refunds` (`total_days * rate`). |
+| 5 | `refund_update` | `AFTER UPDATE` | `Leave_Summary` | Recalculates `Refunds.refund_amount` whenever `Leave_Summary.total_days` changes. |
+| 6 | `mess_leave_insert` | `AFTER INSERT` | `Mess_Leaves` | Inserts or increments `total_days` and `refund_amount` in `Mess_Refunds` (`days * 100`). |
+| 7 | `mess_leave_update` | `AFTER UPDATE` | `Mess_Leaves` | Adjusts `Mess_Refunds` based on the difference between old and new days. |
+| 8 | `mess_leave_delete` | `AFTER DELETE` | `Mess_Leaves` | Deducts deleted leave days from `Mess_Refunds`. |
+| 9 | `mess_refunds_timestamp`| `BEFORE UPDATE` | `Mess_Refunds` | Refreshes `last_updated = CURRENT_TIMESTAMP`. |
+| 10 | `check_inventory_before_meal` | `BEFORE INSERT` | `Meal_Log` | Iterates over `Dish_Requirements` for the scheduled dish. If any ingredient has `Inventory.quantity < required_qty`, cancels transaction with `'Insufficient inventory stock'`. |
+| 11 | `deduct_inventory_after_meal` | `AFTER INSERT` | `Meal_Log` | Loops through `Dish_Requirements` and decrements `Inventory.quantity = quantity - required_qty`, recalculating `total_cost`. |
+| 12 | `low_stock_alert` | `AFTER UPDATE` | `Inventory` | Emits an alert record into `Alerts` with message `"<Item> is below threshold"` whenever stock falls below 20 units. |
+| 13 | `sports_check_stock` | `BEFORE INSERT` | `Sports_Issues` | Verifies `Sports_Items.available_quantity >= NEW.quantity`. Aborts with `'Not enough items available'` if stock is insufficient. |
+| 14 | `sports_reduce_stock` | `AFTER INSERT` | `Sports_Issues` | Decrements `Sports_Items.available_quantity = available_quantity - NEW.quantity`. |
+| 15 | `sports_return_fine` | `AFTER UPDATE` | `Sports_Issues` | Triggers when status changes to `'Returned'`. Replenishes shelf stock. If `return_date > due_date`, computes late days and writes a fine record into `Sports_Fines` (`overdue_days * fine_per_day`). |
 
 ---
 
-## 5. Analytical Views
+## 5. Analytical Views (All 7 Views)
 
-The database provides pre-built SQL views for dashboards and reporting:
+The schema provides 7 SQL views consumed by frontend dashboard widgets and managerial reports:
 
-- **`vw_low_inventory`**: Filters items where quantity is below threshold (20 units) for replenishment planning.
-- **`vw_student_refunds`**: Joins students with their cumulative mess refund entitlement.
-- **`vw_weekly_menu`**: Formats the schedule joining dishes, days, and meal categories.
-- **`vw_monthly_cost_trends`**: Aggregates monthly operational expenses grouped by year and month.
-- **`vw_top_waste_items`**: Analyzes the top wasted pantry items sorted by quantity.
-- **`vw_feedback_average`**: Calculates average user ratings and review volume per dish.
-- **`vw_pending_sports_fines`**: Displays outstanding uncollected equipment fines.
+### 1. `vw_low_inventory`
+- **Purpose**: Displays provisions that need immediate purchase orders.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_low_inventory AS
+  SELECT item_id, item_name, quantity, unit
+  FROM Inventory 
+  WHERE quantity < 20;
+  ```
+
+### 2. `vw_student_refunds`
+- **Purpose**: Feeds student financial rebate summaries.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_student_refunds AS
+  SELECT s.bt_no, s.name, r.total_days, r.refund_amount 
+  FROM Students s 
+  JOIN Mess_Refunds r ON s.bt_no = r.bt_no;
+  ```
+
+### 3. `vw_weekly_menu`
+- **Purpose**: Generates formatted weekly dining timetables for students and cooks.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_weekly_menu AS
+  SELECT w.day_name, w.meal_type, m.dish_name 
+  FROM Weekly_Menu w 
+  JOIN Menu_Dishes m ON w.dish_id = m.dish_id;
+  ```
+
+### 4. `vw_monthly_cost_trends`
+- **Purpose**: Aggregates operational dining expenses by month and year for budget charts.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_monthly_cost_trends AS
+  SELECT 
+      EXTRACT(YEAR FROM expense_date)::int AS yr, 
+      EXTRACT(MONTH FROM expense_date)::int AS mn, 
+      SUM(amount) AS total_expense
+  FROM Mess_Expenses
+  GROUP BY EXTRACT(YEAR FROM expense_date), EXTRACT(MONTH FROM expense_date)
+  ORDER BY yr, mn;
+  ```
+
+### 5. `vw_top_waste_items`
+- **Purpose**: Audit reporting on top kitchen scrap and spoilage items.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_top_waste_items AS
+  SELECT i.item_name, SUM(w.qty) AS total_wasted
+  FROM Waste_Log w 
+  JOIN Inventory i ON w.item_id = i.item_id
+  GROUP BY i.item_name
+  ORDER BY total_wasted DESC;
+  ```
+
+### 6. `vw_feedback_average`
+- **Purpose**: Aggregates quality ratings and review metrics for the student dining portal.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_feedback_average AS
+  SELECT 
+      m.dish_name, 
+      ROUND(AVG(f.rating), 2) AS avg_rating, 
+      COUNT(*) AS total_reviews
+  FROM Mess_Feedback f 
+  JOIN Menu_Dishes m ON f.dish_id = m.dish_id
+  GROUP BY m.dish_name
+  ORDER BY avg_rating DESC;
+  ```
+
+### 7. `vw_pending_sports_fines`
+- **Purpose**: Displays outstanding uncollected equipment fines for sports managers.
+- **Query Logic**:
+  ```sql
+  CREATE OR REPLACE VIEW vw_pending_sports_fines AS
+  SELECT fine_id, issue_id, bt_no, fine_amount, created_date
+  FROM Sports_Fines;
+  ```
 
 ---
 
-## 6. Security, Integrity & Constraints
+## 6. Normalization, Keys & Relational Constraints
 
-1. **Cascade Deletions (`ON DELETE CASCADE`)**:
-   Foreign keys referencing `Students(bt_no)` are defined with `ON DELETE CASCADE`. Removing or graduating a student cleanly purges their dependent records (allocations, leaves, complaints, payments) without leaving orphaned entries.
-2. **Unique Constraints**:
-   - `Students(phone)` and `Students(email)` are strictly unique.
-   - `Inventory(item_name)`, `Sports_Items(item_name)`, and `Menu_Dishes(dish_name)` are unique to prevent duplicate stock entries.
-3. **Environment Isolation**:
-   Database credentials and passwords reside in `.env`, injected at runtime via Node.js connection pooling (`pg.Pool`), ensuring credentials never leak into version control.
+1. **3rd Normal Form (3NF)**:
+   All tables adhere to 3NF. Non-key attributes are fully dependent only upon the primary key. Aggregates (`Room_Occupancy`, `Leave_Summary`, `Refunds`) exist strictly as trigger-maintained performance caches.
+2. **Referential Integrity**:
+   Foreign keys connecting students to dependent records (`Room_Allocations`, `Leave_Log`, `Complaints`, `Payments`, `Mess_Fees`, `Sports_Issues`) use `ON DELETE CASCADE` so student graduation or offboarding executes without dangling foreign references.
+3. **Unique Keys & Data Protection**:
+   - `Students(phone)` and `Students(email)` enforce strict uniqueness.
+   - `Inventory(item_name)`, `Sports_Items(item_name)`, and `Menu_Dishes(dish_name)` enforce uniqueness to avoid duplicate inventory items.
+   - Database credentials and secrets are managed exclusively through environment variables (`.env`).
