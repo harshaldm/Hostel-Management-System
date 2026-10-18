@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payments - Hostel Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { min-height: 100vh; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%); }
+        .sidebar a { color: #b8b8b8; text-decoration: none; padding: 12px 20px; display: block; border-radius: 8px; margin: 4px 10px; }
+        .sidebar a:hover, .sidebar a.active { background: #0f3460; color: #fff; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
+        .navbar { background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%); }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 sidebar p-0">
+            <div class="text-center py-4"><h5 class="text-white"><i class="bi bi-building"></i> Hostel</h5></div>
+            <a href="/room/students" class="<%= page === 'students' ? 'active' : '' %>"><i class="bi bi-people"></i> Students</a>
+            <a href="/room/rooms" class="<%= page === 'rooms' ? 'active' : '' %>"><i class="bi bi-door-open"></i> Rooms</a>
+            <a href="/room/allocations" class="<%= page === 'allocations' ? 'active' : '' %>"><i class="bi bi-person-plus"></i> Allocation</a>
+            <a href="/room/leave" class="<%= page === 'leave' ? 'active' : '' %>"><i class="bi bi-calendar-minus"></i> Leave</a>
+            <a href="/room/complaints" class="<%= page === 'complaints' ? 'active' : '' %>"><i class="bi bi-exclamation-triangle"></i> Complaints</a>
+            <a href="/room/visitors" class="<%= page === 'visitors' ? 'active' : '' %>"><i class="bi bi-people"></i> Visitors</a>
+            <a href="/room/payments" class="<%= page === 'payments' ? 'active' : '' %>"><i class="bi bi-currency-dollar"></i> Payments</a>
+            <hr class="text-secondary">
+            <div class="text-center text-secondary small py-2">MESS</div>
+            <a href="/mess/fees" class="<%= page === 'fees' ? 'active' : '' %>"><i class="bi bi-cash"></i> Fees</a>
+            <a href="/mess/leaves" class="<%= page === 'leaves' ? 'active' : '' %>"><i class="bi bi-calendar-minus"></i> Leaves & Refunds</a>
+            <a href="/mess/menu" class="<%= page === 'menu' ? 'active' : '' %>"><i class="bi bi-list-ol"></i> Weekly Menu</a>
+            <a href="/mess/inventory" class="<%= page === 'inventory' ? 'active' : '' %>"><i class="bi bi-box-seam"></i> Inventory</a>
+            <a href="/mess/meals" class="<%= page === 'meals' ? 'active' : '' %>"><i class="bi bi-egg-fried"></i> Meal Log</a>
+            <a href="/mess/staff" class="<%= page === 'staff' ? 'active' : '' %>"><i class="bi bi-person-badge"></i> Staff</a>
+            <a href="/mess/vendors" class="<%= page === 'vendors' ? 'active' : '' %>"><i class="bi bi-truck"></i> Vendors</a>
+            <a href="/mess/expenses" class="<%= page === 'expenses' ? 'active' : '' %>"><i class="bi bi-receipt"></i> Expenses</a>
+            <a href="/mess/feedback" class="<%= page === 'feedback' ? 'active' : '' %>"><i class="bi bi-star"></i> Feedback</a>
+            <a href="/mess/alerts" class="<%= page === 'alerts' ? 'active' : '' %>"><i class="bi bi-bell"></i> Alerts</a>
+            <hr class="text-secondary">
+            <div class="text-center text-secondary small py-2">SPORTS</div>
+            <a href="/sports/dashboard" class="<%= page === 'sports-dashboard' ? 'active' : '' %>"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <a href="/sports/inventory" class="<%= page === 'sports-inventory' ? 'active' : '' %>"><i class="bi bi-box-seam"></i> Inventory</a>
+            <a href="/sports/issues" class="<%= page === 'sports-issues' ? 'active' : '' %>"><i class="bi bi-journal-arrow-up"></i> Issues</a>
+            <a href="/sports/fines" class="<%= page === 'sports-fines' ? 'active' : '' %>"><i class="bi bi-cash-coin"></i> Fines</a>
+        </div>
+        <div class="col-md-10">
+            <nav class="navbar navbar-expand-lg navbar-dark px-4">
+                <span class="navbar-brand">Hostel Management System</span>
+                <div class="ms-auto"><a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a></div>
+            </nav>
+            <div class="p-4">
+                <div class="page-header d-flex justify-content-between align-items-center">
+                    <h4><i class="bi bi-currency-dollar"></i> Payments</h4>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus"></i> Add Payment</button>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <table class="table table-hover">
+                            <thead class="table-light"><tr><th>BT No</th><th>Name</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+                            <tbody>
+                                <% if (payments.length > 0) { %>
+                                <% payments.forEach(function(p) { %>
+                                <tr>
+                                    <td><%= p.bt_no %></td><td><%= p.name %></td><td>₹<%= p.amount %></td>
+                                    <td><%= p.payment_date ? p.payment_date.toISOString().split('T')[0] : '' %></td>
+                                    <td><span class="badge bg-<%= p.status === 'Paid' ? 'success' : 'danger' %>"><%= p.status %></span></td>
+                                </tr>
+                                <% }); %>
+                                <% } else { %>
+                                <tr><td colspan="5" class="text-center text-muted">No payments</td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Add Payment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <form method="POST" action="/room/payments/add">
+                <div class="modal-body">
+                    <div class="mb-3"><label class="form-label">Student</label><select name="bt_no" class="form-select" required><% students.forEach(function(s) { %><option value="<%= s.bt_no %>"><%= s.name %></option><% }); %></select></div>
+                    <div class="mb-3"><label class="form-label">Amount</label><input type="number" name="amount" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Date</label><input type="date" name="payment_date" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Status</label><select name="status" class="form-select"><option value="Paid">Paid</option><option value="Pending">Pending</option></select></div>
+                </div>
+                <div class="modal-footer"><button type="submit" class="btn btn-primary">Add</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostel Leave - Student Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { min-height: 100vh; background: linear-gradient(180deg, #198754 0%, #0f5132 100%); }
+        .sidebar a { color: #b8b8b8; text-decoration: none; padding: 12px 20px; display: block; border-radius: 8px; margin: 4px 10px; transition: all 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background: #146c43; color: #fff; }
+        .sidebar a i { margin-right: 10px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 sidebar p-0">
+            <div class="text-center py-4">
+                <h5 class="text-white"><i class="bi bi-mortarboard"></i> Student</h5>
+                <p class="text-white-50 small mb-0"><%= student.bt_no %></p>
+            </div>
+            <a href="/student/profile" class="<%= page === 'profile' ? 'active' : '' %>"><i class="bi bi-person"></i> My Profile</a>
+            <a href="/student/room" class="<%= page === 'room' ? 'active' : '' %>"><i class="bi bi-door-open"></i> My Room</a>
+            <a href="/student/fines" class="<%= page === 'fines' ? 'active' : '' %>"><i class="bi bi-currency-dollar"></i> Pending Fines</a>
+            <hr class="text-secondary">
+            <div class="text-center text-secondary small py-2">REGISTERS</div>
+            <a href="/student/mess-leave" class="<%= page === 'mess-leave' ? 'active' : '' %>"><i class="bi bi-cup-hot"></i> Mess Leave</a>
+            <a href="/student/hostel-leave" class="<%= page === 'hostel-leave' ? 'active' : '' %>"><i class="bi bi-house"></i> Hostel Leave</a>
+            <a href="/student/sports-issue" class="<%= page === 'sports-issue' ? 'active' : '' %>"><i class="bi bi-sportscourt"></i> Sports Issue</a>
+            <hr class="text-secondary">
+            <a href="/logout" class="text-danger"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        </div>
+        <div class="col-md-10 p-4">
+            <% if (error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+            <% } %>
+            <div class="card mb-4">
+                <div class="card-header bg-white py-3">
+                    <h4 class="mb-0"><i class="bi bi-house"></i> Apply Hostel Leave</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="/student/hostel-leave/add">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">BT No</label>
+                                    <input type="text" class="form-control" value="<%= student.bt_no %>" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" class="form-control" value="<%= student.name %>" readonly>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">From Date</label>
+                                    <input type="date" name="from_date" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">To Date</label>
+                                    <input type="date" name="to_date" class="form-control" required>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="mb-3">
+                                    <label class="form-label">Days</label>
+                                    <input type="number" name="days" class="form-control" min="1" required>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-success">Submit Leave</button>
+                    </form>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header bg-white py-3">
+                    <h4 class="mb-0"><i class="bi bi-clock-history"></i> My Hostel Leave History</h4>
+                </div>
+                <div class="card-body">
+                    <% if (leaves.length > 0) { %>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>From Date</th>
+                                    <th>To Date</th>
+                                    <th>Days</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% leaves.forEach(leave => { %>
+                                <tr>
+                                    <td><%= leave.from_date ? new Date(leave.from_date).toLocaleDateString() : 'N/A' %></td>
+                                    <td><%= leave.to_date ? new Date(leave.to_date).toLocaleDateString() : 'N/A' %></td>
+                                    <td><%= leave.days %></td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                    <% } else { %>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> No hostel leave records found.
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

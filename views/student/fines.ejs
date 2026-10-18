@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pending Fines - Student Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { min-height: 100vh; background: linear-gradient(180deg, #198754 0%, #0f5132 100%); }
+        .sidebar a { color: #b8b8b8; text-decoration: none; padding: 12px 20px; display: block; border-radius: 8px; margin: 4px 10px; transition: all 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background: #146c43; color: #fff; }
+        .sidebar a i { margin-right: 10px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 sidebar p-0">
+            <div class="text-center py-4">
+                <h5 class="text-white"><i class="bi bi-mortarboard"></i> Student</h5>
+                <p class="text-white-50 small mb-0"><%= student.bt_no %></p>
+            </div>
+            <a href="/student/profile" class="<%= page === 'profile' ? 'active' : '' %>"><i class="bi bi-person"></i> My Profile</a>
+            <a href="/student/room" class="<%= page === 'room' ? 'active' : '' %>"><i class="bi bi-door-open"></i> My Room</a>
+            <a href="/student/fines" class="<%= page === 'fines' ? 'active' : '' %>"><i class="bi bi-currency-dollar"></i> Pending Fines</a>
+            <hr class="text-secondary">
+            <div class="text-center text-secondary small py-2">REGISTERS</div>
+            <a href="/student/mess-leave" class="<%= page === 'mess-leave' ? 'active' : '' %>"><i class="bi bi-cup-hot"></i> Mess Leave</a>
+            <a href="/student/hostel-leave" class="<%= page === 'hostel-leave' ? 'active' : '' %>"><i class="bi bi-house"></i> Hostel Leave</a>
+            <a href="/student/sports-issue" class="<%= page === 'sports-issue' ? 'active' : '' %>"><i class="bi bi-sportscourt"></i> Sports Issue</a>
+            <hr class="text-secondary">
+            <a href="/logout" class="text-danger"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        </div>
+        <div class="col-md-10 p-4">
+            <% if (typeof error !== 'undefined' && error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+            <% } %>
+            <div class="card">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="bi bi-currency-dollar"></i> Pending Fines</h4>
+                    <span class="badge bg-danger"><%= fines.length %> Pending</span>
+                </div>
+                <div class="card-body">
+                    <% if (fines.length > 0) { %>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Fine Amount</th>
+                                    <th>Created Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% fines.forEach(fine => { %>
+                                <tr>
+                                    <td><%= fine.item_name %></td>
+                                    <td class="text-danger fw-bold">₹<%= fine.fine_amount %></td>
+                                    <td><%= fine.created_date ? new Date(fine.created_date).toLocaleDateString() : 'N/A' %></td>
+                                    <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <h5>Total Pending: <span class="text-danger">₹<%= fines.reduce((sum, f) => sum + Number(f.fine_amount), 0) %></span></h5>
+                    </div>
+                    <% } else { %>
+                    <div class="alert alert-success">
+                        <i class="bi bi-check-circle"></i> No pending fines. You have no outstanding dues.
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Room - Student Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        body { background-color: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
+        .sidebar { min-height: 100vh; background: linear-gradient(180deg, #198754 0%, #0f5132 100%); }
+        .sidebar a { color: #b8b8b8; text-decoration: none; padding: 12px 20px; display: block; border-radius: 8px; margin: 4px 10px; transition: all 0.3s; }
+        .sidebar a:hover, .sidebar a.active { background: #146c43; color: #fff; }
+        .sidebar a i { margin-right: 10px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-2 sidebar p-0">
+            <div class="text-center py-4">
+                <h5 class="text-white"><i class="bi bi-mortarboard"></i> Student</h5>
+                <p class="text-white-50 small mb-0"><%= student.bt_no %></p>
+            </div>
+            <a href="/student/profile" class="<%= page === 'profile' ? 'active' : '' %>"><i class="bi bi-person"></i> My Profile</a>
+            <a href="/student/room" class="<%= page === 'room' ? 'active' : '' %>"><i class="bi bi-door-open"></i> My Room</a>
+            <a href="/student/fines" class="<%= page === 'fines' ? 'active' : '' %>"><i class="bi bi-currency-dollar"></i> Pending Fines</a>
+            <hr class="text-secondary">
+            <div class="text-center text-secondary small py-2">REGISTERS</div>
+            <a href="/student/mess-leave" class="<%= page === 'mess-leave' ? 'active' : '' %>"><i class="bi bi-cup-hot"></i> Mess Leave</a>
+            <a href="/student/hostel-leave" class="<%= page === 'hostel-leave' ? 'active' : '' %>"><i class="bi bi-house"></i> Hostel Leave</a>
+            <a href="/student/sports-issue" class="<%= page === 'sports-issue' ? 'active' : '' %>"><i class="bi bi-sportscourt"></i> Sports Issue</a>
+            <hr class="text-secondary">
+            <a href="/logout" class="text-danger"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        </div>
+        <div class="col-md-10 p-4">
+            <% if (error) { %>
+            <div class="alert alert-danger"><%= error %></div>
+            <% } %>
+            <div class="card">
+                <div class="card-header bg-white py-3">
+                    <h4 class="mb-0"><i class="bi bi-door-open"></i> My Room Allocation</h4>
+                </div>
+                <div class="card-body">
+                    <% if (allocations && allocations.room_no) { %>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="card bg-success text-white">
+                                <div class="card-body text-center">
+                                    <h1 class="display-4"><%= allocations.room_no %></h1>
+                                    <p class="mb-0">Room Number</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-primary text-white">
+                                <div class="card-body text-center">
+                                    <h1 class="display-4"><%= allocations.floor_no %></h1>
+                                    <p class="mb-0">Floor</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-info text-white">
+                                <div class="card-body text-center">
+                                    <h1 class="display-6"><%= allocations.room_type %></h1>
+                                    <p class="mb-0">Room Type</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-muted mb-1">Allocation Date</p>
+                        <p class="fw-bold"><%= allocations.allocation_date ? new Date(allocations.allocation_date).toLocaleDateString() : 'N/A' %></p>
+                    </div>
+                    <% } else { %>
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> No room allocation found. Please contact hostel administration.
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

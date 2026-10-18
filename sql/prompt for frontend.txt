@@ -1,0 +1,442 @@
+Build a full-stack **Hostel Management Dashboard** using **Node.js** where the backend and frontend exist in one application.
+
+The system already has a MySQL database with two major modules:
+
+1. Room Management
+2. Mess Management
+
+The application should first open with a **Login Selection Screen**:
+
+* Admin Login
+* Student Login (placeholder for future expansion)
+
+For now, only implement **Admin Login**. No strong security needed yet. Use a simple login flow that can later be upgraded with JWT / sessions / role-based auth.
+
+---
+
+# Tech Stack
+
+Use:
+
+## Backend
+
+* Node.js
+* Express.js
+* MySQL
+* REST APIs
+
+## Frontend
+
+Choose one:
+
+* EJS Templates + Bootstrap/Tailwind
+  OR
+* React frontend served with Node backend
+
+## Other
+
+* Clean folder structure
+* Expandable architecture
+* Reusable components
+* Responsive UI
+
+---
+
+# App Flow
+
+## Landing Page
+
+Display two cards/buttons:
+
+1. Admin Login
+2. Student Login (Coming Soon)
+
+When admin clicks login:
+Open admin dashboard.
+
+---
+
+# Authentication (Basic for now)
+
+Create simple admin login page:
+
+Fields:
+
+* Username
+* Password
+
+Use hardcoded credentials for now:
+
+username: admin
+password: admin123
+
+On success:
+Redirect to dashboard.
+
+Structure code so later we can replace with:
+
+* Database users table
+* JWT auth
+* Session auth
+* Student login
+
+---
+
+# Main Dashboard Layout
+
+After login show:
+
+* Sidebar
+* Top Navbar
+* Main Content Area
+* Logout Button
+
+Sidebar Sections:
+
+1. Dashboard Home
+2. Room Management
+3. Mess Management
+4. Reports
+5. Settings
+
+---
+
+# Dashboard Home
+
+Show summary cards:
+
+* Total Students
+* Occupied Rooms
+* Available Rooms
+* Pending Complaints
+* Paid Mess Fees
+* Low Inventory Alerts
+* Total Refunds
+
+Charts:
+
+* Room Occupancy by Floor
+* Monthly Expenses
+* Top Waste Items
+* Dish Ratings
+
+---
+
+# ROOM MANAGEMENT MODULE
+
+Use existing SQL schema.
+
+Create pages/APIs for:
+
+## Students
+
+CRUD:
+
+* Add Student
+* Edit Student
+* Delete Student
+* Search Student
+
+Fields:
+BT No, Name, Year, Phone, Email, Branch
+
+---
+
+## Rooms
+
+CRUD:
+
+* Room No
+* Capacity
+* Floor
+* Type
+
+Show occupancy status.
+
+---
+
+## Room Allocation
+
+Form:
+
+* Select Student
+* Select Room
+
+When room full:
+Show backend SQL error:
+Room is full
+
+Display allocation history.
+
+---
+
+## Leave Registry
+
+Form:
+
+* Student
+* From Date
+* To Date
+* Days
+
+Show:
+
+* Leave Summary
+* Refund Table
+
+Refund is backend-trigger based.
+
+---
+
+## Complaints
+
+Table:
+
+* Student
+* Room
+* Issue Type
+* Description
+* Status
+
+Actions:
+
+* Mark Resolved
+
+---
+
+## Visitors
+
+Log visitor entries:
+
+* Student
+* Visitor Name
+* Date
+* In Time
+* Out Time
+* Purpose
+
+---
+
+## Payments
+
+Track hostel payments.
+
+---
+
+# MESS MANAGEMENT MODULE
+
+Use mess SQL schema already created.
+
+Submenu:
+
+1. Dashboard
+2. Fees
+3. Leaves & Refunds
+4. Weekly Menu
+5. Inventory
+6. Meal Serving
+7. Dishes & Recipes
+8. Staff
+9. Vendors & Purchases
+10. Expenses
+11. Waste Log
+12. Feedback
+13. Alerts
+
+---
+
+## Mess Dashboard
+
+Cards:
+
+* Registered Students
+* Paid Fees
+* Pending Fees
+* Active Staff
+* Inventory Items
+* Low Stock
+* Monthly Expense
+* Refund Total
+
+Charts from SQL views:
+
+* vw_monthly_cost_trends
+* vw_top_waste_items
+* vw_feedback_average
+
+---
+
+## Mess Fees
+
+CRUD + mark paid.
+
+---
+
+## Leaves & Refunds
+
+Show leave entries and refund summary.
+
+Refund auto updates from triggers.
+
+---
+
+## Weekly Menu
+
+Display Monday-Sunday with Breakfast/Lunch/Dinner.
+
+Edit menu schedule.
+
+---
+
+## Inventory
+
+CRUD stock items.
+
+Highlight low stock.
+
+---
+
+## Meal Serving
+
+Form:
+
+* Dish
+* Meal Type
+* Date
+* Remarks
+
+Insert into Meal_Log.
+
+If SQL returns:
+Insufficient inventory stock
+
+Show toast error.
+
+---
+
+## Dishes & Recipes
+
+Manage dishes and ingredient requirements.
+
+---
+
+## Staff
+
+Manage roles and staff members.
+
+---
+
+## Vendors & Purchases
+
+Track vendors, orders, purchased items.
+
+---
+
+## Expenses
+
+Track mess spending.
+
+---
+
+## Waste Log
+
+Display waste records.
+
+---
+
+## Feedback
+
+Show ratings/comments.
+
+---
+
+## Alerts
+
+Show low stock notifications.
+
+Mark resolved.
+
+---
+
+# Backend API Structure
+
+Create routes like:
+
+/api/login
+
+/api/students
+/api/rooms
+/api/allocations
+/api/complaints
+/api/visitors
+/api/payments
+
+/api/mess/fees
+/api/mess/leaves
+/api/mess/refunds
+/api/mess/menu
+/api/mess/inventory
+/api/mess/meals
+/api/mess/staff
+/api/mess/vendors
+/api/mess/expenses
+/api/mess/feedback
+/api/mess/alerts
+
+---
+
+# Folder Structure
+
+Use clean scalable structure:
+
+/app
+/routes
+/controllers
+/models
+/views or /client
+/middlewares
+/config
+/public
+
+---
+
+# UI Design
+
+Professional admin panel style:
+
+* Modern sidebar
+* Smooth cards
+* Tables with pagination
+* Search bars
+* Modal forms
+* Toast notifications
+* Responsive mobile layout
+* Nice charts
+
+Use a polished theme.
+
+---
+
+# Important Notes
+
+1. Keep admin login simple now but expandable.
+
+2. Student login page should exist as disabled/coming soon.
+
+3. Use real MySQL integration.
+
+4. Handle SQL trigger errors nicely in frontend.
+
+5. Build clean maintainable code.
+
+---
+
+# Final Goal
+
+Create a professional Node.js based hostel admin dashboard that combines:
+
+* Room Management
+* Mess Management
+* Admin Login System
+
+inside one modern scalable application.

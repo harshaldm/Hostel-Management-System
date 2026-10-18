@@ -1,0 +1,244 @@
+CREATE DATABASE Hostel_Management;
+USE Hostel_Management;
+
+---------------------------------------------------
+-- 1. STUDENTS (CORE TABLE)
+---------------------------------------------------
+CREATE TABLE Students (
+    bt_no VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    year INT NOT NULL,
+    phone VARCHAR(15) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    branch VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+---------------------------------------------------
+-- 2. ROOMS
+---------------------------------------------------
+CREATE TABLE Rooms (
+    room_no INT PRIMARY KEY,
+    max_capacity INT NOT NULL,
+    floor_no INT NOT NULL,
+    room_type VARCHAR(50)
+);
+
+---------------------------------------------------
+-- 3. ROOM ALLOCATION (MAIN RELATION TABLE)
+---------------------------------------------------
+CREATE TABLE Room_Allocations (
+    alloc_id INT AUTO_INCREMENT PRIMARY KEY,
+    bt_no VARCHAR(20),
+    room_no INT,
+    allocation_date DATE DEFAULT (CURRENT_DATE),
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE,
+    FOREIGN KEY (room_no) REFERENCES Rooms(room_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 4. ROOM OCCUPANCY (DERIVED / OPTIONAL CACHE)
+---------------------------------------------------
+CREATE TABLE Room_Occupancy (
+    room_no INT PRIMARY KEY,
+    current_count INT DEFAULT 0,
+
+    FOREIGN KEY (room_no) REFERENCES Rooms(room_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 5. LEAVE LOG (FIXED VERSION)
+---------------------------------------------------
+CREATE TABLE Leave_Log (
+    leave_id INT AUTO_INCREMENT PRIMARY KEY,
+    bt_no VARCHAR(20),
+    from_date DATE NOT NULL,
+    to_date DATE NOT NULL,
+    days INT,
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 6. LEAVE SUMMARY (AGGREGATED)
+---------------------------------------------------
+CREATE TABLE Leave_Summary (
+    bt_no VARCHAR(20) PRIMARY KEY,
+    name VARCHAR(255),
+    total_days INT DEFAULT 0,
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 7. HOSTEL SETTINGS (CONFIG TABLE)
+---------------------------------------------------
+CREATE TABLE Hostel_Settings (
+    setting_name VARCHAR(100) PRIMARY KEY,
+    value DECIMAL(10,2) NOT NULL
+);
+
+INSERT INTO Hostel_Settings VALUES ('leave_refund_per_day', 100);
+
+---------------------------------------------------
+-- 8. REFUND TABLE
+---------------------------------------------------
+CREATE TABLE Refunds (
+    refund_id INT AUTO_INCREMENT PRIMARY KEY,
+    bt_no VARCHAR(20),
+    name VARCHAR(255),
+    refund_amount DECIMAL(10,2) DEFAULT 0,
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 9. COMPLAINTS / MAINTENANCE
+---------------------------------------------------
+CREATE TABLE Complaints (
+    complaint_id INT AUTO_INCREMENT PRIMARY KEY,
+    bt_no VARCHAR(20),
+    room_no INT,
+    issue_type VARCHAR(100),
+    description TEXT,
+    status VARCHAR(20) DEFAULT 'Pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    resolved_at TIMESTAMP NULL,
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE,
+    FOREIGN KEY (room_no) REFERENCES Rooms(room_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 10. VISITOR LOG
+---------------------------------------------------
+CREATE TABLE Visitors (
+    visitor_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_bt_no VARCHAR(20),
+    visitor_name VARCHAR(255),
+    visit_date DATE,
+    in_time TIME,
+    out_time TIME,
+    purpose VARCHAR(255),
+
+    FOREIGN KEY (student_bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 11. PAYMENTS
+---------------------------------------------------
+CREATE TABLE Payments (
+    payment_id INT AUTO_INCREMENT PRIMARY KEY,
+    bt_no VARCHAR(20),
+    amount DECIMAL(10,2),
+    payment_date DATE,
+    status VARCHAR(20),
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- 12. ALLOCATION HISTORY
+---------------------------------------------------
+CREATE TABLE Allocation_History (
+    history_id INT AUTO_INCREMENT PRIMARY KEY,
+    bt_no VARCHAR(20),
+    old_room INT,
+    new_room INT,
+    from_date DATE,
+    to_date DATE,
+
+    FOREIGN KEY (bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE
+);
+
+---------------------------------------------------
+-- TRIGGERS
+---------------------------------------------------
+
+DELIMITER //
+
+---------------------------------------------------
+-- ROOM CAPACITY CHECK
+---------------------------------------------------
+CREATE TRIGGER check_room_capacity
+BEFORE INSERT ON Room_Allocations
+FOR EACH ROW
+BEGIN
+    DECLARE max_cap INT;
+    DECLARE curr INT;
+
+    SELECT max_capacity INTO max_cap
+    FROM Rooms
+    WHERE room_no = NEW.room_no;
+
+    SELECT COUNT(*) INTO curr
+    FROM Room_Allocations
+    WHERE room_no = NEW.room_no;
+
+    IF curr >= max_cap THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Room is full';
+    END IF;
+END //
+
+---------------------------------------------------
+-- UPDATE ROOM OCCUPANCY
+---------------------------------------------------
+CREATE TRIGGER update_room_occupancy
+AFTER INSERT ON Room_Allocations
+FOR EACH ROW
+BEGIN
+    INSERT INTO Room_Occupancy (room_no, current_count)
+    VALUES (NEW.room_no, 1)
+    ON DUPLICATE KEY UPDATE
+    current_count = current_count + 1;
+END //
+
+---------------------------------------------------
+-- LEAVE INSERT
+---------------------------------------------------
+CREATE TRIGGER leave_insert
+AFTER INSERT ON Leave_Log
+FOR EACH ROW
+BEGIN
+    INSERT INTO Leave_Summary (bt_no, name, total_days)
+    VALUES (
+        NEW.bt_no,
+        (SELECT name FROM Students WHERE bt_no = NEW.bt_no),
+        NEW.days
+    )
+    ON DUPLICATE KEY UPDATE
+        total_days = total_days + NEW.days;
+END //
+
+---------------------------------------------------
+-- REFUND INSERT
+---------------------------------------------------
+CREATE TRIGGER refund_insert
+AFTER INSERT ON Leave_Summary
+FOR EACH ROW
+BEGIN
+    DECLARE rate DECIMAL(10,2);
+
+    SELECT value INTO rate
+    FROM Hostel_Settings
+    WHERE setting_name = 'leave_refund_per_day';
+
+    INSERT INTO Refunds (bt_no, name, refund_amount)
+    VALUES (NEW.bt_no, NEW.name, NEW.total_days * rate);
+END //
+
+---------------------------------------------------
+-- REFUND UPDATE
+---------------------------------------------------
+CREATE TRIGGER refund_update
+AFTER UPDATE ON Leave_Summary
+FOR EACH ROW
+BEGIN
+    UPDATE Refunds
+    SET refund_amount = NEW.total_days * 100
+    WHERE bt_no = NEW.bt_no;
+END //
+
+DELIMITER ;
