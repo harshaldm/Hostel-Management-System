@@ -10,7 +10,9 @@
         body { background-color: #f5f7fa; font-family: 'Segoe UI', sans-serif; }
         .sidebar { min-height: 100vh; background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%); }
         .sidebar a { color: #b8b8b8; text-decoration: none; padding: 12px 20px; display: block; border-radius: 8px; margin: 4px 10px; transition: all 0.3s; }
-        .sidebar a:hover, .sidebar a.active { background: #0f3460; color: #fff; }
+        .sidebar a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+        .sidebar a.active { background: #0f3460; color: #fff; font-weight: 600; }
+        .sidebar a i { margin-right: 10px; }
         .card { border: none; border-radius: 12px; box-shadow: 0 2px 15px rgba(0,0,0,0.05); }
         .navbar { background: linear-gradient(90deg, #1a1a2e 0%, #16213e 100%); }
     </style>
@@ -48,38 +50,79 @@
                 <div class="ms-auto"><a href="/logout" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i> Logout</a></div>
             </nav>
             <div class="p-4">
-                <div class="page-header d-flex justify-content-between align-items-center">
-                    <h4><i class="bi bi-calendar-minus"></i> Leave Registry</h4>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus"></i> Add Leave</button>
+                <% if (error) { %>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="bi bi-exclamation-octagon me-2"></i><%= error %>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <% } %>
+                <div class="page-header d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h4 class="mb-1"><i class="bi bi-calendar-minus"></i> Hostel Leave Registry</h4>
+                        <small class="text-muted">Showing students currently on leave</small>
+                    </div>
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addModal"><i class="bi bi-plus-lg me-1"></i> Add Leave</button>
                 </div>
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header"><h5>Leave Records</h5></div>
+                        <div class="card h-100">
+                            <div class="card-header bg-white py-3"><h5 class="mb-0">Leave Records</h5></div>
                             <div class="card-body">
-                                <table class="table table-sm">
-                                    <thead><tr><th>Student</th><th>From</th><th>To</th><th>Days</th></tr></thead>
-                                    <tbody>
-                                        <% leaves.forEach(function(l) { %>
-                                        <tr><td><%= l.name %></td><td><%= l.from_date ? l.from_date.toISOString().split('T')[0] : '' %></td><td><%= l.to_date ? l.to_date.toISOString().split('T')[0] : '' %></td><td><%= l.days %></td></tr>
-                                        <% }); %>
-                                    </tbody>
-                                </table>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light"><tr><th>Student</th><th>From</th><th>To</th><th>Days</th></tr></thead>
+                                        <tbody>
+                                            <% if (leaves && leaves.length > 0) { %>
+                                                <% leaves.forEach(function(l) { %>
+                                                <tr>
+                                                    <td><strong><%= l.name %></strong><div class="small text-muted"><%= l.bt_no %></div></td>
+                                                    <td><%= formatDate(l.from_date) %></td>
+                                                    <td><%= formatDate(l.to_date) %></td>
+                                                    <td><span class="badge bg-secondary"><%= l.days %> days</span></td>
+                                                </tr>
+                                                <% }); %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-4">
+                                                        <i class="bi bi-info-circle d-block fs-3 mb-2"></i>
+                                                        No students currently on leave
+                                                    </td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
                     <div class="col-md-6">
-                        <div class="card">
-                            <div class="card-header"><h5>Refund Summary</h5></div>
+                        <div class="card h-100">
+                            <div class="card-header bg-white py-3"><h5 class="mb-0">Hostel Refund Summary</h5></div>
                             <div class="card-body">
-                                <table class="table table-sm">
-                                    <thead><tr><th>BT No</th><th>Days</th><th>Amount</th></tr></thead>
-                                    <tbody>
-                                        <% refunds.forEach(function(r) { %>
-                                        <tr><td><%= r.bt_no %></td><td><%= r.total_days %></td><td>₹<%= r.refund_amount %></td></tr>
-                                        <% }); %>
-                                    </tbody>
-                                </table>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle">
+                                        <thead class="table-light"><tr><th>BT No</th><th>Student</th><th>Days</th><th>Amount</th></tr></thead>
+                                        <tbody>
+                                            <% if (refunds && refunds.length > 0) { %>
+                                                <% refunds.forEach(function(r) { %>
+                                                <tr>
+                                                    <td><code><%= r.bt_no %></code></td>
+                                                    <td><%= r.name %></td>
+                                                    <td><%= r.total_days %></td>
+                                                    <td><strong class="text-success">₹<%= Number(r.refund_amount).toLocaleString('en-IN') %></strong></td>
+                                                </tr>
+                                                <% }); %>
+                                            <% } else { %>
+                                                <tr>
+                                                    <td colspan="4" class="text-center text-muted py-4">
+                                                        <i class="bi bi-info-circle d-block fs-3 mb-2"></i>
+                                                        No active refund records
+                                                    </td>
+                                                </tr>
+                                            <% } %>
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -91,18 +134,19 @@
 <div class="modal fade" id="addModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header"><h5 class="modal-title">Add Leave</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-header"><h5 class="modal-title">Add Hostel Leave</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
             <form method="POST" action="/room/leave/add">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Student</label>
                         <select name="bt_no" class="form-select" required>
-                            <% students.forEach(function(s) { %><option value="<%= s.bt_no %>"><%= s.name %></option><% }); %>
+                            <option value="" disabled selected>Select Student</option>
+                            <% students.forEach(function(s) { %><option value="<%= s.bt_no %>"><%= s.bt_no %> - <%= s.name %></option><% }); %>
                         </select>
                     </div>
-                    <div class="mb-3"><label class="form-label">From Date</label><input type="date" name="from_date" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">To Date</label><input type="date" name="to_date" class="form-control" required></div>
-                    <div class="mb-3"><label class="form-label">Days</label><input type="number" name="days" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">From Date</label><input type="date" id="modalFromDate" name="from_date" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">To Date</label><input type="date" id="modalToDate" name="to_date" class="form-control" required></div>
+                    <div class="mb-3"><label class="form-label">Days (Inclusive)</label><input type="number" id="modalDays" name="days" class="form-control" min="1" required readonly></div>
                 </div>
                 <div class="modal-footer"><button type="submit" class="btn btn-primary">Add Leave</button></div>
             </form>
@@ -110,5 +154,25 @@
     </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const fromInput = document.getElementById('modalFromDate');
+    const toInput = document.getElementById('modalToDate');
+    const daysInput = document.getElementById('modalDays');
+    function calcDays() {
+        if (fromInput.value && toInput.value) {
+            const f = new Date(fromInput.value);
+            const t = new Date(toInput.value);
+            if (t >= f) {
+                daysInput.value = Math.round((t - f) / 86400000) + 1;
+            } else {
+                daysInput.value = '';
+            }
+        }
+    }
+    if (fromInput && toInput) {
+        fromInput.addEventListener('change', calcDays);
+        toInput.addEventListener('change', calcDays);
+    }
+</script>
 </body>
 </html>

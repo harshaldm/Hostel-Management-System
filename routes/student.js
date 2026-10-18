@@ -56,8 +56,18 @@ router.get('/fines', async (req, res) => {
 router.get('/mess-leave', async (req, res) => {
     const student = req.session.student;
     try {
+        // R6: Student portal > Mess Leave history shows self-applied AND hostel-derived mess leaves
         const [leaves] = await db.query(`
-            SELECT * FROM Mess_Leaves WHERE bt_no = ? ORDER BY from_date DESC
+            SELECT ml.*, 
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM Leave_Log ll 
+                       WHERE ll.bt_no = ml.bt_no 
+                         AND ll.from_date = ml.from_date 
+                         AND ll.to_date = ml.to_date
+                   ) THEN 'Hostel Leave' ELSE 'Mess Leave' END AS leave_source
+            FROM Mess_Leaves ml 
+            WHERE ml.bt_no = ? 
+            ORDER BY ml.from_date DESC, ml.leave_id DESC
         `, [student.bt_no]);
         res.render('student/mess-leave', { student, leaves, page: 'mess-leave', error: null, success: null });
     } catch (err) {
@@ -67,13 +77,51 @@ router.get('/mess-leave', async (req, res) => {
 
 router.post('/mess-leave/add', async (req, res) => {
     const student = req.session.student;
-    const { from_date, to_date, days } = req.body;
+    const { from_date, to_date } = req.body;
+    
+    // Server-side validation
+    if (!from_date || !to_date) {
+        const [leaves] = await db.query(`
+            SELECT ml.*, 
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM Leave_Log ll 
+                       WHERE ll.bt_no = ml.bt_no AND ll.from_date = ml.from_date AND ll.to_date = ml.to_date
+                   ) THEN 'Hostel Leave' ELSE 'Mess Leave' END AS leave_source
+            FROM Mess_Leaves ml WHERE ml.bt_no = ? ORDER BY ml.from_date DESC, ml.leave_id DESC
+        `, [student.bt_no]);
+        return res.render('student/mess-leave', { student, leaves, page: 'mess-leave', error: 'Please provide both From and To dates.', success: null });
+    }
+
+    if (new Date(to_date) < new Date(from_date)) {
+        const [leaves] = await db.query(`
+            SELECT ml.*, 
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM Leave_Log ll 
+                       WHERE ll.bt_no = ml.bt_no AND ll.from_date = ml.from_date AND ll.to_date = ml.to_date
+                   ) THEN 'Hostel Leave' ELSE 'Mess Leave' END AS leave_source
+            FROM Mess_Leaves ml WHERE ml.bt_no = ? ORDER BY ml.from_date DESC, ml.leave_id DESC
+        `, [student.bt_no]);
+        return res.render('student/mess-leave', { student, leaves, page: 'mess-leave', error: 'To Date must be on or after From Date.', success: null });
+    }
+
+    // Inclusive calculation: to_date - from_date + 1
+    const fromD = new Date(from_date);
+    const toD = new Date(to_date);
+    const days = Math.round((toD - fromD) / (1000 * 60 * 60 * 24)) + 1;
+
     try {
         await db.query('INSERT INTO Mess_Leaves (bt_no, from_date, to_date, days) VALUES (?, ?, ?, ?)',
             [student.bt_no, from_date, to_date, days]);
         res.redirect('/student/mess-leave');
     } catch (err) {
-        const [leaves] = await db.query('SELECT * FROM Mess_Leaves WHERE bt_no = ? ORDER BY from_date DESC', [student.bt_no]);
+        const [leaves] = await db.query(`
+            SELECT ml.*, 
+                   CASE WHEN EXISTS (
+                       SELECT 1 FROM Leave_Log ll 
+                       WHERE ll.bt_no = ml.bt_no AND ll.from_date = ml.from_date AND ll.to_date = ml.to_date
+                   ) THEN 'Hostel Leave' ELSE 'Mess Leave' END AS leave_source
+            FROM Mess_Leaves ml WHERE ml.bt_no = ? ORDER BY ml.from_date DESC, ml.leave_id DESC
+        `, [student.bt_no]);
         res.render('student/mess-leave', { student, leaves, page: 'mess-leave', error: err.message, success: null });
     }
 });
@@ -82,7 +130,7 @@ router.get('/hostel-leave', async (req, res) => {
     const student = req.session.student;
     try {
         const [leaves] = await db.query(`
-            SELECT * FROM Leave_Log WHERE bt_no = ? ORDER BY from_date DESC
+            SELECT * FROM Leave_Log WHERE bt_no = ? ORDER BY from_date DESC, leave_id DESC
         `, [student.bt_no]);
         res.render('student/hostel-leave', { student, leaves, page: 'hostel-leave', error: null });
     } catch (err) {
@@ -92,13 +140,30 @@ router.get('/hostel-leave', async (req, res) => {
 
 router.post('/hostel-leave/add', async (req, res) => {
     const student = req.session.student;
-    const { from_date, to_date, days } = req.body;
+    const { from_date, to_date } = req.body;
+    
+    // Server-side validation
+    if (!from_date || !to_date) {
+        const [leaves] = await db.query('SELECT * FROM Leave_Log WHERE bt_no = ? ORDER BY from_date DESC, leave_id DESC', [student.bt_no]);
+        return res.render('student/hostel-leave', { student, leaves, page: 'hostel-leave', error: 'Please provide both From and To dates.' });
+    }
+
+    if (new Date(to_date) < new Date(from_date)) {
+        const [leaves] = await db.query('SELECT * FROM Leave_Log WHERE bt_no = ? ORDER BY from_date DESC, leave_id DESC', [student.bt_no]);
+        return res.render('student/hostel-leave', { student, leaves, page: 'hostel-leave', error: 'To Date must be on or after From Date.' });
+    }
+
+    // Inclusive calculation: to_date - from_date + 1
+    const fromD = new Date(from_date);
+    const toD = new Date(to_date);
+    const days = Math.round((toD - fromD) / (1000 * 60 * 60 * 24)) + 1;
+
     try {
         await db.query('INSERT INTO Leave_Log (bt_no, from_date, to_date, days) VALUES (?, ?, ?, ?)',
             [student.bt_no, from_date, to_date, days]);
         res.redirect('/student/hostel-leave');
     } catch (err) {
-        const [leaves] = await db.query('SELECT * FROM Leave_Log WHERE bt_no = ? ORDER BY from_date DESC', [student.bt_no]);
+        const [leaves] = await db.query('SELECT * FROM Leave_Log WHERE bt_no = ? ORDER BY from_date DESC, leave_id DESC', [student.bt_no]);
         res.render('student/hostel-leave', { student, leaves, page: 'hostel-leave', error: err.message });
     }
 });

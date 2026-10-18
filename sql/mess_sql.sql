@@ -112,68 +112,82 @@ CREATE TABLE IF NOT EXISTS Vendors(
 ---------------------------------------------------
 
 -- Mess leave insert → update refunds
-CREATE OR REPLACE FUNCTION mess_leave_insert()
-RETURNS TRIGGER AS $$
+-- Recompute Mess_Refunds from scratch using distinct dates across all leaves
+CREATE OR REPLACE FUNCTION recompute_mess_refund(p_bt_no VARCHAR)
+RETURNS VOID AS $$
 DECLARE
-    rate DECIMAL(10,2);
+    v_days INT;
+    v_rate DECIMAL(10,2);
 BEGIN
-    SELECT value INTO rate FROM Mess_Settings WHERE setting_name='refund_per_day';
-    INSERT INTO Mess_Refunds(bt_no, total_days, refund_amount)
-    VALUES(NEW.bt_no, NEW.days, NEW.days * rate)
+    SELECT COALESCE(value, 100.00) INTO v_rate
+    FROM Mess_Settings
+    WHERE setting_name = 'refund_per_day';
+    
+    IF v_rate IS NULL THEN
+        v_rate := 100.00;
+    END IF;
+
+    SELECT COALESCE(COUNT(DISTINCT d::DATE), 0) INTO v_days
+    FROM Mess_Leaves ml,
+         LATERAL generate_series(ml.from_date::TIMESTAMP, ml.to_date::TIMESTAMP, '1 day'::INTERVAL) AS d
+    WHERE ml.bt_no = p_bt_no
+      AND ml.from_date IS NOT NULL
+      AND ml.to_date IS NOT NULL
+      AND ml.to_date >= ml.from_date;
+
+    INSERT INTO Mess_Refunds (bt_no, total_days, refund_amount, last_updated)
+    VALUES (p_bt_no, v_days, v_days * v_rate, CURRENT_TIMESTAMP)
     ON CONFLICT (bt_no) DO UPDATE
-    SET total_days = Mess_Refunds.total_days + NEW.days,
-        refund_amount = (Mess_Refunds.total_days + NEW.days) * rate;
+    SET total_days = EXCLUDED.total_days,
+        refund_amount = EXCLUDED.refund_amount,
+        last_updated = CURRENT_TIMESTAMP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Ensure inclusive days calculation on Mess_Leaves
+CREATE OR REPLACE FUNCTION trg_mess_leaves_calc_days()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.days := (NEW.to_date - NEW.from_date) + 1;
     RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_mess_leaves_calc_days ON Mess_Leaves;
+CREATE TRIGGER trg_mess_leaves_calc_days
+BEFORE INSERT OR UPDATE ON Mess_Leaves
+FOR EACH ROW
+EXECUTE FUNCTION trg_mess_leaves_calc_days();
+
+-- Mess leave trigger (INSERT, UPDATE, DELETE) -> recompute refunds
+CREATE OR REPLACE FUNCTION trg_mess_leaves_recompute()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (TG_OP = 'DELETE') THEN
+        PERFORM recompute_mess_refund(OLD.bt_no);
+        RETURN OLD;
+    ELSIF (TG_OP = 'UPDATE') THEN
+        IF (OLD.bt_no <> NEW.bt_no) THEN
+            PERFORM recompute_mess_refund(OLD.bt_no);
+        END IF;
+        PERFORM recompute_mess_refund(NEW.bt_no);
+        RETURN NEW;
+    ELSE
+        PERFORM recompute_mess_refund(NEW.bt_no);
+        RETURN NEW;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS mess_leave_insert ON Mess_Leaves;
-CREATE TRIGGER mess_leave_insert
-AFTER INSERT ON Mess_Leaves
-FOR EACH ROW
-EXECUTE FUNCTION mess_leave_insert();
-
--- Mess leave delete → update refunds
-CREATE OR REPLACE FUNCTION mess_leave_delete()
-RETURNS TRIGGER AS $$
-DECLARE
-    rate DECIMAL(10,2);
-BEGIN
-    SELECT value INTO rate FROM Mess_Settings WHERE setting_name='refund_per_day';
-    UPDATE Mess_Refunds
-    SET total_days = total_days - OLD.days,
-        refund_amount = (total_days - OLD.days) * rate
-    WHERE bt_no = OLD.bt_no;
-    RETURN OLD;
-END;
-$$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS mess_leave_delete ON Mess_Leaves;
-CREATE TRIGGER mess_leave_delete
-AFTER DELETE ON Mess_Leaves
-FOR EACH ROW
-EXECUTE FUNCTION mess_leave_delete();
-
--- Mess leave update → update refunds
-CREATE OR REPLACE FUNCTION mess_leave_update()
-RETURNS TRIGGER AS $$
-DECLARE
-    rate DECIMAL(10,2);
-BEGIN
-    SELECT value INTO rate FROM Mess_Settings WHERE setting_name='refund_per_day';
-    UPDATE Mess_Refunds
-    SET total_days = total_days - OLD.days + NEW.days,
-        refund_amount = (total_days - OLD.days + NEW.days) * rate
-    WHERE bt_no = NEW.bt_no;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS mess_leave_update ON Mess_Leaves;
-CREATE TRIGGER mess_leave_update
-AFTER UPDATE ON Mess_Leaves
+DROP TRIGGER IF EXISTS trg_mess_leaves_recompute ON Mess_Leaves;
+
+CREATE TRIGGER trg_mess_leaves_recompute
+AFTER INSERT OR UPDATE OR DELETE ON Mess_Leaves
 FOR EACH ROW
-EXECUTE FUNCTION mess_leave_update();
+EXECUTE FUNCTION trg_mess_leaves_recompute();
 
 ---------------------------------------------------
 -- DASHBOARD VIEWS

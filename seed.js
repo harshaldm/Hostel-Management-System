@@ -280,13 +280,15 @@ function generate() {
     }
   }
 
-  // ── mess leaves
-  d.messLeaves = d.leaves.filter(() => chance(0.8)).map(l => ({ ...l }));
-  const refundDays = {};
-  d.messLeaves.forEach(l => { refundDays[l.bt_no] = (refundDays[l.bt_no] || 0) + l.days; });
-  d.messRefunds = Object.entries(refundDays).map(([bt_no, total_days]) => ({
-    bt_no, total_days, refund_amount: total_days * REFUND_PER_DAY, last_updated: ts(NOW),
-  }));
+  // ── mess-only leaves (hostel leaves are auto-synced to mess_leaves via triggers)
+  d.messLeaves = [];
+  const messOnlyCandidates = d.students.filter(() => chance(0.08));
+  for (const s of messOnlyCandidates) {
+    const from = between('2026-08-10', '2026-10-10');
+    const days = int(2, 5);
+    const to = addDays(from, days - 1);
+    d.messLeaves.push({ bt_no: s.bt_no, from_date: iso(from), to_date: iso(to), days });
+  }
 
   // ── dishes & menu
   d.dishes = DISHES.map(([name, type]) => ({ name, type }));
@@ -485,10 +487,11 @@ async function seed(c, d) {
 
   console.log('Mess');
   await insertRows(c, 'mess_fees', d.messFees);
-  await insertRows(c, 'mess_leaves', d.messLeaves);
-  await insertRows(c, 'mess_refunds', d.messRefunds, {
-    onConflict: 'ON CONFLICT (bt_no) DO UPDATE SET total_days = EXCLUDED.total_days, refund_amount = EXCLUDED.refund_amount',
-  });
+  // Hostel leaves from leave_log were already synced into mess_leaves by trg_sync_hostel_leave_to_mess
+  if (d.messLeaves && d.messLeaves.length) {
+    await insertRows(c, 'mess_leaves', d.messLeaves);
+  }
+  // Mess_refunds are maintained automatically by triggers; no manual insert needed
   if (d.messExpenses && d.messExpenses.length) {
     await insertRows(c, 'mess_expenses', d.messExpenses);
   }

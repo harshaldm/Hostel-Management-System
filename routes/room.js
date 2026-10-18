@@ -263,14 +263,33 @@ router.post('/allocations/delete/:bt_no', async (req, res) => {
 
 router.get('/leave', async (req, res) => {
     try {
+        // R4: Show only students currently on leave (today between from_date and to_date, Asia/Kolkata date)
+        // Also includes upcoming leaves where to_date >= today, keeping past September leaves hidden
         const [leaves] = await db.query(`
             SELECT l.*, s.name FROM Leave_Log l 
             JOIN Students s ON l.bt_no = s.bt_no 
-            ORDER BY l.from_date DESC
+            WHERE (
+                (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE BETWEEN l.from_date AND l.to_date
+                OR l.to_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
+            )
+            ORDER BY l.from_date DESC, l.leave_id DESC
         `);
-        const [refunds] = await db.query('SELECT * FROM Refunds');
-        const [students] = await db.query('SELECT * FROM Students');
-        res.render('room/leave', { leaves, refunds, students, page: 'leave' });
+        const [refunds] = await db.query(`
+            SELECT r.refund_id, r.bt_no, r.name, ls.total_days, r.refund_amount
+            FROM Refunds r
+            JOIN Leave_Summary ls ON r.bt_no = ls.bt_no
+            WHERE r.bt_no IN (
+                SELECT DISTINCT l.bt_no 
+                FROM Leave_Log l 
+                WHERE (
+                    (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE BETWEEN l.from_date AND l.to_date
+                    OR l.to_date >= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Kolkata')::DATE
+                )
+            )
+            ORDER BY r.refund_id DESC
+        `);
+        const [students] = await db.query('SELECT * FROM Students ORDER BY name');
+        res.render('room/leave', { leaves, refunds, students, page: 'leave', error: req.query.error || null });
     } catch (err) {
         res.render('room/leave', { leaves: [], refunds: [], students: [], page: 'leave', error: err.message });
     }
@@ -278,12 +297,22 @@ router.get('/leave', async (req, res) => {
 
 router.post('/leave/add', async (req, res) => {
     try {
-        const { bt_no, from_date, to_date, days } = req.body;
+        const { bt_no, from_date, to_date } = req.body;
+        if (!bt_no || !from_date || !to_date) {
+            return res.redirect('/room/leave?error=Please%20provide%20all%20required%20fields');
+        }
+        if (new Date(to_date) < new Date(from_date)) {
+            return res.redirect('/room/leave?error=To%20date%20must%20be%20after%20or%20equal%20to%20From%20date');
+        }
+        const fromD = new Date(from_date);
+        const toD = new Date(to_date);
+        const days = Math.round((toD - fromD) / (1000 * 60 * 60 * 24)) + 1;
+
         await db.query('INSERT INTO Leave_Log (bt_no, from_date, to_date, days) VALUES (?, ?, ?, ?)', 
             [bt_no, from_date, to_date, days]);
         res.redirect('/room/leave');
     } catch (err) {
-        res.redirect('/room/leave');
+        res.redirect('/room/leave?error=' + encodeURIComponent(err.message));
     }
 });
 

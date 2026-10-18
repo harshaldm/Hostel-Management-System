@@ -61,7 +61,7 @@
                                 <% payments.forEach(function(p) { %>
                                 <tr>
                                     <td><%= p.bt_no %></td><td><%= p.name %></td><td>₹<%= p.amount %></td>
-                                    <td><%= p.payment_date ? p.payment_date.toISOString().split('T')[0] : '' %></td>
+                                    <td><%= formatDate(p.payment_date) %></td>
                                     <td><span class="badge bg-<%= p.status === 'Paid' ? 'success' : 'danger' %>"><%= p.status %></span></td>
                                 </tr>
                                 <% }); %>

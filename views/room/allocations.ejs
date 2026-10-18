@@ -86,7 +86,7 @@
                                             <td><%= alloc.name %></td>
                                             <td><%= alloc.room_no %></td>
                                             <td><%= alloc.room_type %></td>
-                                            <td><%= alloc.allocation_date ? alloc.allocation_date.toISOString().split('T')[0] : '' %></td>
+                                            <td><%= formatDate(alloc.allocation_date) %></td>
                                             <td>
                                                 <button class="btn btn-sm btn-warning me-1" data-bs-toggle="modal" data-bs-target="#reassignModal<%= alloc.bt_no %>">
                                                     <i class="bi bi-arrow-left-right"></i>

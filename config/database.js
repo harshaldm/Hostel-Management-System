@@ -1,5 +1,8 @@
-const { Pool } = require('pg');
+const { Pool, types } = require('pg');
 const config = require('./config');
+
+// Keep DATE columns (OID 1082) as plain 'YYYY-MM-DD' strings to prevent timezone shifts
+types.setTypeParser(1082, val => val);
 
 const pool = new Pool({
     host: config.database.host,

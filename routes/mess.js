@@ -45,14 +45,23 @@ router.post('/fees/mark-paid/:id', async (req, res) => {
 
 router.get('/leaves', async (req, res) => {
     try {
+        // R5: Mess Leave Records (student name, from, to, days; newest first)
         const [leaves] = await db.query(`
-            SELECT l.*, s.name FROM Mess_Leaves l 
+            SELECT l.*, s.name 
+            FROM Mess_Leaves l 
             JOIN Students s ON l.bt_no = s.bt_no 
-            ORDER BY l.from_date DESC
+            ORDER BY l.from_date DESC, l.leave_id DESC
         `);
-        const [refunds] = await db.query('SELECT * FROM Mess_Refunds');
-        const [students] = await db.query('SELECT * FROM Students');
-        res.render('mess/leaves', { leaves, refunds, students, page: 'leaves' });
+
+        // R5: Mess Refund Summary (BT No, name, days, amount)
+        const [refunds] = await db.query(`
+            SELECT r.refund_id, r.bt_no, s.name, r.total_days, r.refund_amount, r.last_updated
+            FROM Mess_Refunds r
+            JOIN Students s ON r.bt_no = s.bt_no
+            ORDER BY r.last_updated DESC, r.bt_no
+        `);
+        const [students] = await db.query('SELECT * FROM Students ORDER BY name');
+        res.render('mess/leaves', { leaves, refunds, students, page: 'leaves', error: req.query.error || null });
     } catch (err) {
         res.render('mess/leaves', { leaves: [], refunds: [], students: [], page: 'leaves', error: err.message });
     }
@@ -60,12 +69,22 @@ router.get('/leaves', async (req, res) => {
 
 router.post('/leaves/add', async (req, res) => {
     try {
-        const { bt_no, from_date, to_date, days } = req.body;
+        const { bt_no, from_date, to_date } = req.body;
+        if (!bt_no || !from_date || !to_date) {
+            return res.redirect('/mess/leaves?error=Please%20provide%20all%20required%20fields');
+        }
+        if (new Date(to_date) < new Date(from_date)) {
+            return res.redirect('/mess/leaves?error=To%20date%20must%20be%20after%20or%20equal%20to%20From%20date');
+        }
+        const fromD = new Date(from_date);
+        const toD = new Date(to_date);
+        const days = Math.round((toD - fromD) / (1000 * 60 * 60 * 24)) + 1;
+
         await db.query('INSERT INTO Mess_Leaves (bt_no, from_date, to_date, days) VALUES (?, ?, ?, ?)', 
             [bt_no, from_date, to_date, days]);
         res.redirect('/mess/leaves');
     } catch (err) {
-        res.redirect('/mess/leaves');
+        res.redirect('/mess/leaves?error=' + encodeURIComponent(err.message));
     }
 });
 

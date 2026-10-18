@@ -58,7 +58,7 @@
                             <thead class="table-light"><tr><th>Date</th><th>Type</th><th>Amount</th><th>Remarks</th></tr></thead>
                             <tbody>
                                 <% expenses.forEach(function(e) { %>
-                                <tr><td><%= e.expense_date ? e.expense_date.toISOString().split('T')[0] : '' %></td><td><%= e.type %></td><td>₹<%= e.amount %></td><td><%= e.remarks || '-' %></td></tr>
+                                <tr><td><%= formatDate(e.expense_date) %></td><td><%= e.type %></td><td>₹<%= e.amount %></td><td><%= e.remarks || '-' %></td></tr>
                                 <% }); %>
                             </tbody>
                         </table>

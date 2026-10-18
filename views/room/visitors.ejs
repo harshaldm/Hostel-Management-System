@@ -60,7 +60,7 @@
                                 <% if (visitors.length > 0) { %>
                                 <% visitors.forEach(function(v) { %>
                                 <tr>
-                                    <td><%= v.name %></td><td><%= v.visitor_name %></td><td><%= v.visit_date ? v.visit_date.toISOString().split('T')[0] : '' %></td>
+                                    <td><%= v.name %></td><td><%= v.visitor_name %></td><td><%= formatDate(v.visit_date) %></td>
                                     <td><%= v.in_time %></td><td><%= v.out_time %></td><td><%= v.purpose %></td>
                                 </tr>
                                 <% }); %>

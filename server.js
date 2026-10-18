@@ -16,6 +16,34 @@ app.use(session({
     saveUninitialized: true
 }));
 
+// Global Date Formatter Helper: formats 'YYYY-MM-DD' as 'D/M/YYYY' or 'DD/MM/YYYY'
+app.locals.formatDate = function(d) {
+    if (!d) return '-';
+    if (typeof d === 'string') {
+        const match = d.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+            return `${parseInt(match[3], 10)}/${parseInt(match[2], 10)}/${match[1]}`;
+        }
+    }
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return String(d);
+    return `${dt.getDate()}/${dt.getMonth() + 1}/${dt.getFullYear()}`;
+};
+
+app.locals.formatDateISO = function(d) {
+    if (!d) return '';
+    if (typeof d === 'string') {
+        const match = d.match(/^(\d{4}-\d{2}-\d{2})/);
+        if (match) return match[1];
+    }
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return '';
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+};
+
 const authRoutes = require('./routes/auth');
 const roomRoutes = require('./routes/room');
 const messRoutes = require('./routes/mess');

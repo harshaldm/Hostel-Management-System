@@ -60,7 +60,7 @@
                                 <% staff.forEach(function(s) { %>
                                 <tr>
                                     <td><%= s.name %></td><td><%= s.role_name %></td><td><%= s.phone %></td>
-                                    <td><%= s.joining_date ? s.joining_date.toISOString().split('T')[0] : '' %></td>
+                                    <td><%= formatDate(s.joining_date) %></td>
                                     <td><span class="badge bg-<%= s.status === 'Active' ? 'success' : 'secondary' %>"><%= s.status %></span></td>
                                 </tr>
                                 <% }); %>
