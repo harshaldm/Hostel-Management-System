@@ -1,4 +1,4 @@
-# Hostel Management System
+# Hostel Management System - Version 2.0.0
 
 A Node.js/Express-based hostel management dashboard for managing students, rooms, mess, and sports facilities.
 
