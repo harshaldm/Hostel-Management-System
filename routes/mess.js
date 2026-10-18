@@ -92,58 +92,6 @@ router.post('/menu/update', async (req, res) => {
     }
 });
 
-router.get('/inventory', async (req, res) => {
-    try {
-        const [inventory] = await db.query('SELECT * FROM Inventory ORDER BY item_name');
-        const [lowStock] = await db.query('SELECT * FROM vw_low_inventory');
-        res.render('mess/inventory', { inventory, lowStock, page: 'inventory' });
-    } catch (err) {
-        res.render('mess/inventory', { inventory: [], lowStock: [], page: 'inventory', error: err.message });
-    }
-});
-
-router.post('/inventory/add', async (req, res) => {
-    try {
-        const { item_name, quantity, unit, cost_per_unit, week_no } = req.body;
-        const total_cost = quantity * cost_per_unit;
-        await db.query('INSERT INTO Inventory (item_name, quantity, unit, cost_per_unit, total_cost, week_no) VALUES (?, ?, ?, ?, ?, ?)', 
-            [item_name, quantity, unit, cost_per_unit, total_cost, week_no]);
-        res.redirect('/mess/inventory');
-    } catch (err) {
-        res.redirect('/mess/inventory');
-    }
-});
-
-router.get('/meals', async (req, res) => {
-    try {
-        const [meals] = await db.query(`
-            SELECT m.*, d.dish_name FROM Meal_Log m 
-            JOIN Menu_Dishes d ON m.dish_id = d.dish_id 
-            ORDER BY m.served_date DESC
-        `);
-        const [dishes] = await db.query('SELECT * FROM Menu_Dishes');
-        res.render('mess/meals', { meals, dishes, page: 'meals', error: null });
-    } catch (err) {
-        res.render('mess/meals', { meals: [], dishes: [], page: 'meals', error: err.message });
-    }
-});
-
-router.post('/meals/add', async (req, res) => {
-    try {
-        const { dish_id, served_date, meal_type, remarks } = req.body;
-        await db.query('INSERT INTO Meal_Log (dish_id, served_date, meal_type, remarks) VALUES (?, ?, ?, ?)', 
-            [dish_id, served_date, meal_type, remarks]);
-        res.redirect('/mess/meals');
-    } catch (err) {
-        const [meals] = await db.query(`
-            SELECT m.*, d.dish_name FROM Meal_Log m 
-            JOIN Menu_Dishes d ON m.dish_id = d.dish_id 
-            ORDER BY m.served_date DESC
-        `);
-        const [dishes] = await db.query('SELECT * FROM Menu_Dishes');
-        res.render('mess/meals', { meals, dishes, page: 'meals', error: err.message });
-    }
-});
 
 router.get('/staff', async (req, res) => {
     try {
@@ -212,37 +160,5 @@ router.post('/expenses/add', async (req, res) => {
     }
 });
 
-router.get('/feedback', async (req, res) => {
-    try {
-        const [feedback] = await db.query(`
-            SELECT f.*, s.name, d.dish_name FROM Mess_Feedback f 
-            JOIN Students s ON f.bt_no = s.bt_no 
-            JOIN Menu_Dishes d ON f.dish_id = d.dish_id
-            ORDER BY f.feedback_date DESC
-        `);
-        const [avgFeedback] = await db.query('SELECT * FROM vw_feedback_average');
-        res.render('mess/feedback', { feedback, avgFeedback, page: 'feedback' });
-    } catch (err) {
-        res.render('mess/feedback', { feedback: [], avgFeedback: [], page: 'feedback', error: err.message });
-    }
-});
-
-router.get('/alerts', async (req, res) => {
-    try {
-        const [alerts] = await db.query('SELECT * FROM Alerts ORDER BY created_at DESC');
-        res.render('mess/alerts', { alerts, page: 'alerts' });
-    } catch (err) {
-        res.render('mess/alerts', { alerts: [], page: 'alerts', error: err.message });
-    }
-});
-
-router.post('/alerts/resolve/:id', async (req, res) => {
-    try {
-        await db.query("UPDATE Alerts SET is_resolved = 'Yes' WHERE alert_id = ?", [req.params.id]);
-        res.redirect('/mess/alerts');
-    } catch (err) {
-        res.redirect('/mess/alerts');
-    }
-});
 
 module.exports = router;

@@ -56,31 +56,20 @@ BEFORE UPDATE ON Mess_Refunds
 FOR EACH ROW
 EXECUTE FUNCTION update_mess_refunds_timestamp();
 
--- 10 Dishes (must be created before Weekly_Menu which references it)
+-- 5 Menu Dishes
 CREATE TABLE IF NOT EXISTS Menu_Dishes(
     dish_id SERIAL PRIMARY KEY,
     dish_name VARCHAR(100) UNIQUE,
     meal_type VARCHAR(20)
 );
 
--- 5 Weekly Menu
+-- 6 Weekly Menu
 CREATE TABLE IF NOT EXISTS Weekly_Menu(
     menu_id SERIAL PRIMARY KEY,
     day_name VARCHAR(20),
     meal_type VARCHAR(20),
     dish_id INT,
     FOREIGN KEY(dish_id) REFERENCES Menu_Dishes(dish_id)
-);
-
--- 6 Inventory
-CREATE TABLE IF NOT EXISTS Inventory(
-    item_id SERIAL PRIMARY KEY,
-    item_name VARCHAR(100) UNIQUE,
-    quantity DECIMAL(10,2),
-    unit VARCHAR(20),
-    cost_per_unit DECIMAL(10,2),
-    total_cost DECIMAL(10,2),
-    week_no INT
 );
 
 -- 7 Roles
@@ -110,25 +99,12 @@ CREATE TABLE IF NOT EXISTS Mess_Expenses(
     remarks VARCHAR(255)
 );
 
--- 11 Requirements
-CREATE TABLE IF NOT EXISTS Dish_Requirements(
-    req_id SERIAL PRIMARY KEY,
-    dish_id INT,
-    item_id INT,
-    required_qty DECIMAL(10,2),
-    UNIQUE(dish_id, item_id),
-    FOREIGN KEY(dish_id) REFERENCES Menu_Dishes(dish_id) ON DELETE CASCADE,
-    FOREIGN KEY(item_id) REFERENCES Inventory(item_id) ON DELETE CASCADE
-);
-
--- 12 Meal Log
-CREATE TABLE IF NOT EXISTS Meal_Log(
-    log_id SERIAL PRIMARY KEY,
-    dish_id INT,
-    served_date DATE DEFAULT CURRENT_DATE,
-    meal_type VARCHAR(20),
-    remarks VARCHAR(255),
-    FOREIGN KEY(dish_id) REFERENCES Menu_Dishes(dish_id)
+-- 10 Vendors
+CREATE TABLE IF NOT EXISTS Vendors(
+    vendor_id SERIAL PRIMARY KEY,
+    vendor_name VARCHAR(100),
+    phone VARCHAR(15),
+    item_speciality VARCHAR(100)
 );
 
 ---------------------------------------------------
@@ -199,49 +175,27 @@ AFTER UPDATE ON Mess_Leaves
 FOR EACH ROW
 EXECUTE FUNCTION mess_leave_update();
 
--- Check inventory before meal
-CREATE OR REPLACE FUNCTION check_inventory_before_meal()
-RETURNS TRIGGER AS $$
-DECLARE
-    rec RECORD;
-    v_have DECIMAL(10,2);
-BEGIN
-    FOR rec IN SELECT item_id, required_qty FROM Dish_Requirements WHERE dish_id = NEW.dish_id
-    LOOP
-        SELECT quantity INTO v_have FROM Inventory WHERE item_id = rec.item_id;
-        IF v_have < rec.required_qty THEN
-            RAISE EXCEPTION 'Insufficient inventory stock';
-        END IF;
-    END LOOP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+---------------------------------------------------
+-- DASHBOARD VIEWS
+---------------------------------------------------
 
-DROP TRIGGER IF EXISTS check_inventory_before_meal ON Meal_Log;
-CREATE TRIGGER check_inventory_before_meal
-BEFORE INSERT ON Meal_Log
-FOR EACH ROW
-EXECUTE FUNCTION check_inventory_before_meal();
+CREATE OR REPLACE VIEW vw_student_refunds AS
+SELECT s.bt_no, s.name, r.total_days, r.refund_amount 
+FROM Students s 
+JOIN Mess_Refunds r ON s.bt_no = r.bt_no;
 
--- Deduct inventory after meal (converted from MySQL UPDATE JOIN)
-CREATE OR REPLACE FUNCTION deduct_inventory_after_meal()
-RETURNS TRIGGER AS $$
-BEGIN
-    UPDATE Inventory
-    SET quantity = Inventory.quantity - d.required_qty,
-        total_cost = (Inventory.quantity - d.required_qty) * Inventory.cost_per_unit
-    FROM Dish_Requirements d
-    WHERE Inventory.item_id = d.item_id
-      AND d.dish_id = NEW.dish_id;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+CREATE OR REPLACE VIEW vw_weekly_menu AS
+SELECT w.day_name, w.meal_type, m.dish_name 
+FROM Weekly_Menu w 
+JOIN Menu_Dishes m ON w.dish_id = m.dish_id;
 
-DROP TRIGGER IF EXISTS deduct_inventory_after_meal ON Meal_Log;
-CREATE TRIGGER deduct_inventory_after_meal
-AFTER INSERT ON Meal_Log
-FOR EACH ROW
-EXECUTE FUNCTION deduct_inventory_after_meal();
+CREATE OR REPLACE VIEW vw_monthly_cost_trends AS
+SELECT EXTRACT(YEAR FROM expense_date)::INT AS yr,
+       EXTRACT(MONTH FROM expense_date)::INT AS mn,
+       SUM(amount) AS total_expense
+FROM Mess_Expenses
+GROUP BY EXTRACT(YEAR FROM expense_date), EXTRACT(MONTH FROM expense_date)
+ORDER BY yr, mn;
 
 -- ===============================
 -- TEST DATA
@@ -259,37 +213,10 @@ INSERT INTO Mess_Staff(name, role_id, phone, joining_date, status) VALUES
 ('Priya Sharma',3,'9876500005','2024-12-01','Active'),
 ('Sunita Bai',4,'9876500006','2025-01-20','Active');
 
-INSERT INTO Inventory(item_name, quantity, unit, cost_per_unit, total_cost, week_no) VALUES
-('Rice',200,'kg',45,9000,1),
-('Wheat Flour',150,'kg',38,5700,1),
-('Poha Rice',80,'kg',40,3200,1),
-('Onion',100,'kg',25,2500,1),
-('Potato',120,'kg',30,3600,1),
-('Oil',60,'litre',140,8400,1),
-('Dal',90,'kg',95,8550,1),
-('Paneer',40,'kg',260,10400,1),
-('Milk',100,'litre',55,5500,1),
-('Sugar',60,'kg',42,2520,1);
-
 INSERT INTO Menu_Dishes(dish_name, meal_type) VALUES
 ('Poha','Breakfast'),('Upma','Breakfast'),('Paratha','Breakfast'),('Tea','Breakfast'),
 ('Rice Dal','Lunch'),('Aloo Sabzi','Lunch'),('Paneer Curry','Lunch'),('Roti','Lunch'),
 ('Khichdi','Dinner'),('Veg Pulao','Dinner'),('Chapati','Dinner'),('Mixed Sabzi','Dinner');
-
--- Requirements
-INSERT INTO Dish_Requirements(dish_id, item_id, required_qty) VALUES
-(1,3,5),(1,4,2),(1,6,1),
-(2,4,2),(2,6,1),
-(3,2,6),(3,5,3),(3,6,1),
-(4,9,10),(4,10,2),
-(5,1,8),(5,7,4),(5,6,1),
-(6,5,6),(6,4,2),(6,6,1),
-(7,8,5),(7,4,2),(7,6,1),
-(8,2,8),
-(9,1,6),(9,7,3),(9,6,1),
-(10,1,7),(10,5,3),(10,4,2),(10,6,1),
-(11,2,7),
-(12,5,4),(12,4,2),(12,6,1);
 
 -- Weekly Schedule
 INSERT INTO Weekly_Menu(day_name, meal_type, dish_id) VALUES
@@ -301,111 +228,7 @@ INSERT INTO Weekly_Menu(day_name, meal_type, dish_id) VALUES
 ('Saturday','Breakfast',3),('Saturday','Lunch',7),('Saturday','Dinner',10),
 ('Sunday','Breakfast',1),('Sunday','Lunch',5),('Sunday','Dinner',11);
 
-
--- ===============================
--- ADVANCED UPGRADES
--- ===============================
-
-CREATE TABLE IF NOT EXISTS Vendors(
-    vendor_id SERIAL PRIMARY KEY,
-    vendor_name VARCHAR(100),
-    phone VARCHAR(15),
-    item_speciality VARCHAR(100)
-);
-
-CREATE TABLE IF NOT EXISTS Purchase_Orders(
-    po_id SERIAL PRIMARY KEY,
-    vendor_id INT,
-    order_date DATE,
-    status VARCHAR(20),
-    FOREIGN KEY(vendor_id) REFERENCES Vendors(vendor_id)
-);
-
-CREATE TABLE IF NOT EXISTS Purchase_Items(
-    po_item_id SERIAL PRIMARY KEY,
-    po_id INT,
-    item_id INT,
-    qty DECIMAL(10,2),
-    price DECIMAL(10,2),
-    FOREIGN KEY(po_id) REFERENCES Purchase_Orders(po_id) ON DELETE CASCADE,
-    FOREIGN KEY(item_id) REFERENCES Inventory(item_id)
-);
-
-CREATE TABLE IF NOT EXISTS Waste_Log(
-    waste_id SERIAL PRIMARY KEY,
-    item_id INT,
-    qty DECIMAL(10,2),
-    waste_date DATE,
-    reason VARCHAR(255),
-    FOREIGN KEY(item_id) REFERENCES Inventory(item_id)
-);
-
-CREATE TABLE IF NOT EXISTS Mess_Feedback(
-    feedback_id SERIAL PRIMARY KEY,
-    bt_no VARCHAR(20),
-    dish_id INT,
-    rating INT,
-    comment_text VARCHAR(255),
-    feedback_date DATE,
-    FOREIGN KEY(bt_no) REFERENCES Students(bt_no) ON DELETE CASCADE,
-    FOREIGN KEY(dish_id) REFERENCES Menu_Dishes(dish_id)
-);
-
-CREATE TABLE IF NOT EXISTS Alerts(
-    alert_id SERIAL PRIMARY KEY,
-    alert_type VARCHAR(50),
-    message_text VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    is_resolved VARCHAR(10) DEFAULT 'No'
-);
-
-CREATE OR REPLACE VIEW vw_low_inventory AS
-SELECT item_id, item_name, quantity, unit FROM Inventory WHERE quantity < 20;
-
-CREATE OR REPLACE VIEW vw_student_refunds AS
-SELECT s.bt_no, s.name, r.total_days, r.refund_amount FROM Students s JOIN Mess_Refunds r ON s.bt_no = r.bt_no;
-
-CREATE OR REPLACE VIEW vw_weekly_menu AS
-SELECT w.day_name, w.meal_type, m.dish_name FROM Weekly_Menu w JOIN Menu_Dishes m ON w.dish_id = m.dish_id;
-
--- Low stock alert trigger
-CREATE OR REPLACE FUNCTION low_stock_alert()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF NEW.quantity < 20 THEN
-        INSERT INTO Alerts(alert_type, message_text)
-        VALUES('Low Stock', CONCAT(NEW.item_name, ' is below threshold'));
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS low_stock_alert ON Inventory;
-CREATE TRIGGER low_stock_alert
-AFTER UPDATE ON Inventory
-FOR EACH ROW
-EXECUTE FUNCTION low_stock_alert();
-
--- ===============================
--- DASHBOARD VIEWS
--- ===============================
-
-CREATE OR REPLACE VIEW vw_monthly_cost_trends AS
-SELECT EXTRACT(YEAR FROM expense_date)::INT AS yr,
-       EXTRACT(MONTH FROM expense_date)::INT AS mn,
-       SUM(amount) AS total_expense
-FROM Mess_Expenses
-GROUP BY EXTRACT(YEAR FROM expense_date), EXTRACT(MONTH FROM expense_date)
-ORDER BY yr, mn;
-
-CREATE OR REPLACE VIEW vw_top_waste_items AS
-SELECT i.item_name, SUM(w.qty) AS total_wasted
-FROM Waste_Log w JOIN Inventory i ON w.item_id = i.item_id
-GROUP BY i.item_name
-ORDER BY total_wasted DESC;
-
-CREATE OR REPLACE VIEW vw_feedback_average AS
-SELECT m.dish_name, ROUND(AVG(f.rating), 2) AS avg_rating, COUNT(*) AS total_reviews
-FROM Mess_Feedback f JOIN Menu_Dishes m ON f.dish_id = m.dish_id
-GROUP BY m.dish_name
-ORDER BY avg_rating DESC;
+INSERT INTO Vendors(vendor_name, phone, item_speciality) VALUES
+('Green Valley Fresh Agro', '9811002201', 'Fresh Vegetables'),
+('Krishna Dairy Cooperative', '9811002202', 'Dairy Products'),
+('Shree Ganesh Wholesale Provisions', '9811002203', 'Grains & Pulses');

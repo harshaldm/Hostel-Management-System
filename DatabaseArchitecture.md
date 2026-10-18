@@ -1,6 +1,6 @@
 # Hostel Management System — Complete Database Architecture & Technical Reference
 
-This document provides a comprehensive, production-grade technical specification of the PostgreSQL database powering the **Hostel Management System**. It documents all **33 relational tables**, **15 database triggers**, **7 analytical views**, complete **Entity-Relationship (ER) diagrams**, schema data dictionaries, and architectural constraints.
+This document provides a comprehensive, production-grade technical specification of the PostgreSQL database powering the **Hostel Management System**. It documents all **25 relational tables**, **12 database triggers**, **4 analytical views**, complete **Entity-Relationship (ER) diagrams**, schema data dictionaries, and architectural constraints.
 
 ---
 
@@ -20,15 +20,15 @@ The database follows a modular relational model running on **PostgreSQL**. The c
     ┌─────────────────────────┐    ┌─────────────────────────┐    ┌─────────────────────────┐
     │   Hostel Core Module    │    │  Mess Facility Module   │    │  Sports Facility Module │
     ├─────────────────────────┤    ├─────────────────────────┤    ├─────────────────────────┤
-    │ • Rooms & Capacity      │    │ • Pantry Inventory      │    │ • Sports Inventory      │
-    │ • Student Allocations   │    │ • Dishes & Recipes      │    │ • Equipment Issuing     │
-    │ • Real-time Occupancy   │    │ • Weekly Menus & Logs   │    │ • Return Registration   │
-    │ • Leave & Attendance    │    │ • Vendors & Procurement │    │ • Automated Overdue     │
-    │ • Automated Refunds     │    │ • Dining Fees & Rebates │    │   Fine Calculation      │
-    │ • Complaints & Tickets  │    │ • Staff Payroll         │    │                         │
-    │ • Visitor Logs          │    │ • Waste & Scrap Audit   │    │                         │
-    │ • Semester Fee Payments │    │ • Student Feedback      │    │                         │
-    │ • Relocation Audit Log  │    │ • Automated Stock Alerts│    │                         │
+    │ • Rooms & Capacity      │    │ • Dishes Catalog        │    │ • Sports Inventory      │
+    │ • Student Allocations   │    │ • Weekly Menus          │    │ • Equipment Issuing     │
+    │ • Real-time Occupancy   │    │ • Vendors Directory     │    │ • Return Registration   │
+    │ • Leave & Attendance    │    │ • Dining Fees & Billing │    │ • Automated Overdue     │
+    │ • Automated Refunds     │    │ • Dining Leaves         │    │   Fine Calculation      │
+    │ • Complaints & Tickets  │    │ • Automated Rebates     │    │                         │
+    │ • Visitor Logs          │    │ • Staff & Role Payroll  │    │                         │
+    │ • Semester Fee Payments │    │ • Operational Expenses  │    │                         │
+    │ • Relocation Audit Log  │    │ • Facility Settings     │    │                         │
     └─────────────────────────┘    └─────────────────────────┘    └─────────────────────────┘
 ```
 
@@ -36,7 +36,7 @@ The database follows a modular relational model running on **PostgreSQL**. The c
 - **Engine**: PostgreSQL 14+ with full ACID compliance and transactional DDL.
 - **Connection Architecture**: Node.js connection pooling via `pg.Pool` (10 max concurrent connections, 30s idle timeout).
 - **Relational Integrity**: Strict Foreign Key constraints backed by `ON DELETE CASCADE` for clean student offboarding.
-- **Server-Side Automation**: 15 stored procedure triggers handling capacity verification, automated stock deduction, fine computation, and rebate accounting directly at the database engine level.
+- **Server-Side Automation**: 12 stored procedure triggers handling capacity verification, room occupancy tracking, fine computation, and rebate accounting directly at the database engine level.
 
 ---
 
@@ -162,19 +162,8 @@ erDiagram
     STUDENTS ||--o{ MESS_FEES : "pays dues"
     STUDENTS ||--o{ MESS_LEAVES : "logs mess leave"
     STUDENTS ||--o| MESS_REFUNDS : "receives rebate"
-    STUDENTS ||--o{ MESS_FEEDBACK : "submits reviews"
 
     MENU_DISHES ||--o{ WEEKLY_MENU : "scheduled in"
-    MENU_DISHES ||--o{ DISH_REQUIREMENTS : "recipe ingredients"
-    MENU_DISHES ||--o{ MEAL_LOG : "recorded in service"
-    MENU_DISHES ||--o{ MESS_FEEDBACK : "rated in"
-
-    INVENTORY ||--o{ DISH_REQUIREMENTS : "used as ingredient"
-    INVENTORY ||--o{ PURCHASE_ITEMS : "received through PO"
-    INVENTORY ||--o{ WASTE_LOG : "tracked as scrap"
-
-    VENDORS ||--o{ PURCHASE_ORDERS : "supplies"
-    PURCHASE_ORDERS ||--o{ PURCHASE_ITEMS : "contains"
     STAFF_ROLES ||--o{ MESS_STAFF : "assigns grade"
 
     MESS_FEES {
@@ -203,35 +192,17 @@ erDiagram
         timestamp last_updated
     }
 
-    INVENTORY {
-        int item_id PK
-        varchar item_name UK
-        numeric quantity
-        varchar unit
-        numeric cost_per_unit
-        numeric total_cost
-        int week_no
-    }
-
     MENU_DISHES {
         int dish_id PK
         varchar dish_name UK
         varchar meal_type
     }
 
-    DISH_REQUIREMENTS {
-        int req_id PK
-        int dish_id FK
-        int item_id FK
-        numeric required_qty
-    }
-
-    MEAL_LOG {
-        int log_id PK
-        int dish_id FK
-        date served_date
+    WEEKLY_MENU {
+        int menu_id PK
+        varchar day_name
         varchar meal_type
-        varchar remarks
+        int dish_id FK
     }
 
     VENDORS {
@@ -239,39 +210,6 @@ erDiagram
         varchar vendor_name UK
         varchar phone
         varchar item_speciality
-    }
-
-    PURCHASE_ORDERS {
-        int po_id PK
-        int vendor_id FK
-        date order_date
-        varchar status
-        numeric total_amount
-    }
-
-    PURCHASE_ITEMS {
-        int po_item_id PK
-        int po_id FK
-        int item_id FK
-        numeric qty
-        numeric price
-    }
-
-    WASTE_LOG {
-        int waste_id PK
-        int item_id FK
-        numeric qty
-        date waste_date
-        varchar reason
-    }
-
-    MESS_FEEDBACK {
-        int feedback_id PK
-        varchar bt_no FK
-        int dish_id FK
-        int rating
-        text comment_text
-        date feedback_date
     }
 
     MESS_EXPENSES {
@@ -295,14 +233,6 @@ erDiagram
         varchar phone
         date joining_date
         varchar status
-    }
-
-    ALERTS {
-        int alert_id PK
-        varchar alert_type
-        varchar message_text
-        timestamp created_at
-        varchar is_resolved
     }
 
     MESS_SETTINGS {
@@ -354,7 +284,7 @@ erDiagram
 
 ---
 
-## 3. Complete Data Dictionary (All 33 Tables)
+## 3. Complete Data Dictionary (All 25 Tables)
 
 ### 3.1 Core Hostel Management Tables (12 Tables)
 
@@ -477,7 +407,7 @@ Semester hostel boarding and lodging fee register.
 
 ---
 
-### 3.2 Mess Facility & Procurement Tables (18 Tables)
+### 3.2 Mess Facility & Operations Tables (10 Tables)
 
 #### 13. `Mess_Settings`
 Configuration settings for dining operations.
@@ -494,7 +424,7 @@ Monthly mess billing ledger for students.
 | `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Student roll number |
 | `month` | `INT` | `NOT NULL` | Billing month (1–12) |
 | `year` | `INT` | `NOT NULL` | Billing year (e.g. 2026) |
-| `amount` | `DECIMAL(10,2)` | `NOT NULL` | Monthly mess fee (e.g. 4500.00) |
+| `amount` | `DECIMAL(10,2)` | `NOT NULL` | Monthly mess fee (e.g. 3800.00) |
 | `payment_date` | `DATE` | Nullable | Settlement date |
 | `status` | `VARCHAR(20)` | `DEFAULT 'Pending'` | Dues status (`Paid`, `Pending`) |
 
@@ -523,7 +453,7 @@ Master dish catalogue categorized by meal window.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `dish_id` | `SERIAL` | `PRIMARY KEY` | Dish identifier |
-| `dish_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Dish title (e.g. `Paneer Butter Masala`) |
+| `dish_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Dish title (e.g. `Paneer Curry`) |
 | `meal_type` | `VARCHAR(50)` | `NOT NULL` | Category (`Breakfast`, `Lunch`, `Snacks`, `Dinner`) |
 
 #### 18. `Weekly_Menu`
@@ -535,38 +465,7 @@ Recurring weekly mess timetable.
 | `meal_type` | `VARCHAR(20)` | `NOT NULL` | Meal slot |
 | `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id)` | Scheduled dish |
 
-#### 19. `Inventory`
-Raw kitchen provision storage and current warehouse stock.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `item_id` | `SERIAL` | `PRIMARY KEY` | Inventory item identifier |
-| `item_name` | `VARCHAR(100)` | `UNIQUE, NOT NULL` | Ingredient name (e.g. `Toor Dal`) |
-| `quantity` | `DECIMAL(10,2)` | `NOT NULL` | Current stock count on shelf |
-| `unit` | `VARCHAR(20)` | `NOT NULL` | Unit of measure (`kg`, `litre`, `dozen`, `packet`) |
-| `cost_per_unit`| `DECIMAL(10,2)` | `NOT NULL` | Unit wholesale price |
-| `total_cost` | `DECIMAL(10,2)` | `DEFAULT 0` | Total valuation (`quantity * cost_per_unit`) |
-| `week_no` | `INT` | Nullable | Procurement cycle week number |
-
-#### 20. `Dish_Requirements`
-Bill-of-materials recipe specifications defining raw ingredients required per dish.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `req_id` | `SERIAL` | `PRIMARY KEY` | Requirement recipe ID |
-| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id) ON DELETE CASCADE`| Dish being cooked |
-| `item_id` | `INT` | `FK -> Inventory(item_id) ON DELETE CASCADE` | Raw ingredient required |
-| `required_qty` | `DECIMAL(10,2)` | `NOT NULL` | Quantity needed per standard dining batch |
-
-#### 21. `Meal_Log`
-Record of actual meals prepared and served in the dining hall.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `log_id` | `SERIAL` | `PRIMARY KEY` | Service event ID |
-| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id) ON DELETE CASCADE`| Dish prepared |
-| `served_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date cooked and served |
-| `meal_type` | `VARCHAR(20)` | `NOT NULL` | Meal category |
-| `remarks` | `VARCHAR(255)` | Nullable | Service commentary (`Served on time`, etc.) |
-
-#### 22. `Staff_Roles`
+#### 19. `Staff_Roles`
 Mess employee job roles and compensation structure.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -574,7 +473,7 @@ Mess employee job roles and compensation structure.
 | `role_name` | `VARCHAR(50)` | `UNIQUE, NOT NULL` | Job title (`Head Chef`, `Helper`, `Manager`) |
 | `salary_per_person`| `DECIMAL(10,2)` | `NOT NULL` | Monthly salary in INR |
 
-#### 23. `Mess_Staff`
+#### 20. `Mess_Staff`
 Employee roster and contact directory.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -585,8 +484,8 @@ Employee roster and contact directory.
 | `joining_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date employment began |
 | `status` | `VARCHAR(20)` | `DEFAULT 'Active'` | Status (`Active`, `Inactive`) |
 
-#### 24. `Vendors`
-Registered wholesale merchants providing raw supplies.
+#### 21. `Vendors`
+Registered wholesale merchants providing supplies and provisions.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
 | `vendor_id` | `SERIAL` | `PRIMARY KEY` | Merchant ID |
@@ -594,48 +493,7 @@ Registered wholesale merchants providing raw supplies.
 | `phone` | `VARCHAR(15)` | Nullable | Merchant phone |
 | `item_speciality`| `VARCHAR(100)`| Nullable | Specialty domain (`Dairy`, `Grains`, `LPG`) |
 
-#### 25. `Purchase_Orders`
-Procurement batches placed with external vendors.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `po_id` | `SERIAL` | `PRIMARY KEY` | Purchase order ID |
-| `vendor_id` | `INT` | `FK -> Vendors(vendor_id) ON DELETE CASCADE` | Supplying vendor |
-| `order_date` | `DATE` | `DEFAULT CURRENT_DATE` | Order placement date |
-| `status` | `VARCHAR(20)` | `DEFAULT 'Delivered'` | Shipment status (`Delivered`, `Pending`) |
-| `total_amount` | `DECIMAL(10,2)` | `NOT NULL` | Order invoice total in INR |
-
-#### 26. `Purchase_Items`
-Line items detailing individual provisions within a purchase order.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `po_item_id` | `SERIAL` | `PRIMARY KEY` | Line item identifier |
-| `po_id` | `INT` | `FK -> Purchase_Orders(po_id) ON DELETE CASCADE`| Parent PO |
-| `item_id` | `INT` | `FK -> Inventory(item_id) ON DELETE CASCADE` | Raw pantry ingredient |
-| `qty` | `DECIMAL(10,2)` | `NOT NULL` | Purchased quantity |
-| `price` | `DECIMAL(10,2)` | `NOT NULL` | Wholesale unit price paid |
-
-#### 27. `Waste_Log`
-Pantry spoilage, scrap, and expiration audit log.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `waste_id` | `SERIAL` | `PRIMARY KEY` | Waste record ID |
-| `item_id` | `INT` | `FK -> Inventory(item_id) ON DELETE CASCADE` | Spoilage item |
-| `qty` | `DECIMAL(10,2)` | `NOT NULL` | Quantity lost |
-| `waste_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date written off |
-| `reason` | `VARCHAR(255)` | Nullable | Scrap reason (`Spoiled`, `Leftovers`, `Expired`) |
-
-#### 28. `Mess_Feedback`
-Student satisfaction reviews and quality ratings per dish.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `feedback_id` | `SERIAL` | `PRIMARY KEY` | Review record ID |
-| `bt_no` | `VARCHAR(20)` | `FK -> Students(bt_no) ON DELETE CASCADE` | Reviewing student |
-| `dish_id` | `INT` | `FK -> Menu_Dishes(dish_id) ON DELETE CASCADE`| Dish reviewed |
-| `rating` | `INT` | `CHECK (rating BETWEEN 1 AND 5)` | Star rating score (1 to 5) |
-| `comment_text` | `TEXT` | Nullable | Qualitative feedback description |
-| `feedback_date`| `DATE` | `DEFAULT CURRENT_DATE` | Review date |
-
-#### 29. `Mess_Expenses`
+#### 22. `Mess_Expenses`
 Daily and monthly operational mess overheads.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -645,21 +503,11 @@ Daily and monthly operational mess overheads.
 | `expense_date` | `DATE` | `DEFAULT CURRENT_DATE` | Date occurred |
 | `remarks` | `TEXT` | Nullable | Context notes |
 
-#### 30. `Alerts`
-Trigger-generated system alerts for warehouse monitoring.
-| Column | Type | Constraints | Description |
-|---|---|---|---|
-| `alert_id` | `SERIAL` | `PRIMARY KEY` | Alert notification ID |
-| `alert_type` | `VARCHAR(50)` | `NOT NULL` | Alert category (`Low Stock`) |
-| `message_text` | `VARCHAR(255)` | `NOT NULL` | Alert detail description |
-| `created_at` | `TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP` | Alert generated timestamp |
-| `is_resolved` | `VARCHAR(10)` | `DEFAULT 'No'` | Resolution flag (`Yes`, `No`) |
-
 ---
 
 ### 3.3 Sports Facility Tables (3 Tables)
 
-#### 31. `Sports_Items`
+#### 23. `Sports_Items`
 Master sports gear catalog and stock inventory.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -671,7 +519,7 @@ Master sports gear catalog and stock inventory.
 | `cost_per_item`| `DECIMAL(10,2)` | `DEFAULT 0` | Replacement unit cost |
 | `total_cost` | `DECIMAL(10,2)` | `GENERATED ALWAYS AS (total_quantity * cost_per_item) STORED` | Auto-computed asset value |
 
-#### 32. `Sports_Issues`
+#### 24. `Sports_Issues`
 Checkout registry for student sports equipment loans.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -684,7 +532,7 @@ Checkout registry for student sports equipment loans.
 | `return_date` | `DATE` | Nullable | Actual return date |
 | `status` | `VARCHAR(20)` | `DEFAULT 'Issued'` | Checkout state (`Issued`, `Returned`) |
 
-#### 33. `Sports_Fines`
+#### 25. `Sports_Fines`
 Trigger-generated penalty fees assessed for overdue equipment returns.
 | Column | Type | Constraints | Description |
 |---|---|---|---|
@@ -696,9 +544,9 @@ Trigger-generated penalty fees assessed for overdue equipment returns.
 
 ---
 
-## 4. Database Triggers & Business Logic Automation (All 15 Triggers)
+## 4. Database Triggers & Business Logic Automation (All 12 Triggers)
 
-The database engine enforces critical validation and accounting rules through 15 stored procedures:
+The database engine enforces critical validation and accounting rules through 12 stored procedures:
 
 ```
   ┌────────────────────────────────────────────────────────────────────────┐
@@ -720,12 +568,7 @@ The database engine enforces critical validation and accounting rules through 15
      Mess_Leaves (AFTER DELETE)       ──► mess_leave_delete (Adjusts Mess_Refunds)
      Mess_Refunds (BEFORE UPDATE)     ──► mess_refunds_timestamp (Refreshes timestamp)
 
-  4. PANTRY INVENTORY & RECIPES
-     Meal_Log (BEFORE INSERT)         ──► check_inventory_before_meal (Prevents negative stock)
-     Meal_Log (AFTER INSERT)          ──► deduct_inventory_after_meal (Auto-deducts recipe qty)
-     Inventory (AFTER UPDATE)         ──► low_stock_alert (Pushes warning if qty < 20)
-
-  5. SPORTS FACILITY
+  4. SPORTS FACILITY
      Sports_Issues (BEFORE INSERT)    ──► sports_check_stock (Checks availability)
      Sports_Issues (AFTER INSERT)     ──► sports_reduce_stock (Decrements shelf stock)
      Sports_Issues (AFTER UPDATE)     ──► sports_return_fine (Calculates overdue penalties)
@@ -744,30 +587,17 @@ The database engine enforces critical validation and accounting rules through 15
 | 7 | `mess_leave_update` | `AFTER UPDATE` | `Mess_Leaves` | Adjusts `Mess_Refunds` based on the difference between old and new days. |
 | 8 | `mess_leave_delete` | `AFTER DELETE` | `Mess_Leaves` | Deducts deleted leave days from `Mess_Refunds`. |
 | 9 | `mess_refunds_timestamp`| `BEFORE UPDATE` | `Mess_Refunds` | Refreshes `last_updated = CURRENT_TIMESTAMP`. |
-| 10 | `check_inventory_before_meal` | `BEFORE INSERT` | `Meal_Log` | Iterates over `Dish_Requirements` for the scheduled dish. If any ingredient has `Inventory.quantity < required_qty`, cancels transaction with `'Insufficient inventory stock'`. |
-| 11 | `deduct_inventory_after_meal` | `AFTER INSERT` | `Meal_Log` | Loops through `Dish_Requirements` and decrements `Inventory.quantity = quantity - required_qty`, recalculating `total_cost`. |
-| 12 | `low_stock_alert` | `AFTER UPDATE` | `Inventory` | Emits an alert record into `Alerts` with message `"<Item> is below threshold"` whenever stock falls below 20 units. |
-| 13 | `sports_check_stock` | `BEFORE INSERT` | `Sports_Issues` | Verifies `Sports_Items.available_quantity >= NEW.quantity`. Aborts with `'Not enough items available'` if stock is insufficient. |
-| 14 | `sports_reduce_stock` | `AFTER INSERT` | `Sports_Issues` | Decrements `Sports_Items.available_quantity = available_quantity - NEW.quantity`. |
-| 15 | `sports_return_fine` | `AFTER UPDATE` | `Sports_Issues` | Triggers when status changes to `'Returned'`. Replenishes shelf stock. If `return_date > due_date`, computes late days and writes a fine record into `Sports_Fines` (`overdue_days * fine_per_day`). |
+| 10 | `sports_check_stock` | `BEFORE INSERT` | `Sports_Issues` | Verifies `Sports_Items.available_quantity >= NEW.quantity`. Aborts with `'Not enough items available'` if stock is insufficient. |
+| 11 | `sports_reduce_stock` | `AFTER INSERT` | `Sports_Issues` | Decrements `Sports_Items.available_quantity = available_quantity - NEW.quantity`. |
+| 12 | `sports_return_fine` | `AFTER UPDATE` | `Sports_Issues` | Triggers when status changes to `'Returned'`. Replenishes shelf stock. If `return_date > due_date`, computes late days and writes a fine record into `Sports_Fines` (`overdue_days * fine_per_day`). |
 
 ---
 
-## 5. Analytical Views (All 7 Views)
+## 5. Analytical Views (All 4 Views)
 
-The schema provides 7 SQL views consumed by frontend dashboard widgets and managerial reports:
+The schema provides 4 SQL views consumed by frontend dashboard widgets and managerial reports:
 
-### 1. `vw_low_inventory`
-- **Purpose**: Displays provisions that need immediate purchase orders.
-- **Query Logic**:
-  ```sql
-  CREATE OR REPLACE VIEW vw_low_inventory AS
-  SELECT item_id, item_name, quantity, unit
-  FROM Inventory 
-  WHERE quantity < 20;
-  ```
-
-### 2. `vw_student_refunds`
+### 1. `vw_student_refunds`
 - **Purpose**: Feeds student financial rebate summaries.
 - **Query Logic**:
   ```sql
@@ -777,7 +607,7 @@ The schema provides 7 SQL views consumed by frontend dashboard widgets and manag
   JOIN Mess_Refunds r ON s.bt_no = r.bt_no;
   ```
 
-### 3. `vw_weekly_menu`
+### 2. `vw_weekly_menu`
 - **Purpose**: Generates formatted weekly dining timetables for students and cooks.
 - **Query Logic**:
   ```sql
@@ -787,7 +617,7 @@ The schema provides 7 SQL views consumed by frontend dashboard widgets and manag
   JOIN Menu_Dishes m ON w.dish_id = m.dish_id;
   ```
 
-### 4. `vw_monthly_cost_trends`
+### 3. `vw_monthly_cost_trends`
 - **Purpose**: Aggregates operational dining expenses by month and year for budget charts.
 - **Query Logic**:
   ```sql
@@ -801,34 +631,7 @@ The schema provides 7 SQL views consumed by frontend dashboard widgets and manag
   ORDER BY yr, mn;
   ```
 
-### 5. `vw_top_waste_items`
-- **Purpose**: Audit reporting on top kitchen scrap and spoilage items.
-- **Query Logic**:
-  ```sql
-  CREATE OR REPLACE VIEW vw_top_waste_items AS
-  SELECT i.item_name, SUM(w.qty) AS total_wasted
-  FROM Waste_Log w 
-  JOIN Inventory i ON w.item_id = i.item_id
-  GROUP BY i.item_name
-  ORDER BY total_wasted DESC;
-  ```
-
-### 6. `vw_feedback_average`
-- **Purpose**: Aggregates quality ratings and review metrics for the student dining portal.
-- **Query Logic**:
-  ```sql
-  CREATE OR REPLACE VIEW vw_feedback_average AS
-  SELECT 
-      m.dish_name, 
-      ROUND(AVG(f.rating), 2) AS avg_rating, 
-      COUNT(*) AS total_reviews
-  FROM Mess_Feedback f 
-  JOIN Menu_Dishes m ON f.dish_id = m.dish_id
-  GROUP BY m.dish_name
-  ORDER BY avg_rating DESC;
-  ```
-
-### 7. `vw_pending_sports_fines`
+### 4. `vw_pending_sports_fines`
 - **Purpose**: Displays outstanding uncollected equipment fines for sports managers.
 - **Query Logic**:
   ```sql
@@ -847,5 +650,5 @@ The schema provides 7 SQL views consumed by frontend dashboard widgets and manag
    Foreign keys connecting students to dependent records (`Room_Allocations`, `Leave_Log`, `Complaints`, `Payments`, `Mess_Fees`, `Sports_Issues`) use `ON DELETE CASCADE` so student graduation or offboarding executes without dangling foreign references.
 3. **Unique Keys & Data Protection**:
    - `Students(phone)` and `Students(email)` enforce strict uniqueness.
-   - `Inventory(item_name)`, `Sports_Items(item_name)`, and `Menu_Dishes(dish_name)` enforce uniqueness to avoid duplicate inventory items.
+   - `Sports_Items(item_name)` and `Menu_Dishes(dish_name)` enforce uniqueness to avoid duplicate entries.
    - Database credentials and secrets are managed exclusively through environment variables (`.env`).

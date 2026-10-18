@@ -11,8 +11,8 @@
 --  4. Rooms & Allocation Infrastructure (Rooms, Room_Allocations, Room_Occupancy, Allocation_History)
 --  5. Leaves & Automatic Refunds (Leave_Log, Leave_Summary, Refunds)
 --  6. Facility Maintenance & Visitor Logging (Complaints, Visitors, Payments)
---  7. Mess Pantry, Recipes & Weekly Menu (Inventory, Menu_Dishes, Dish_Requirements, Weekly_Menu, Meal_Log)
---  8. Mess Accounting, Procurement & Feedback (Mess_Fees, Mess_Leaves, Mess_Refunds, Mess_Expenses, Purchase_Orders, Purchase_Items, Waste_Log, Mess_Feedback, Alerts)
+--  7. Mess Dishes & Weekly Menu (Menu_Dishes, Weekly_Menu)
+--  8. Mess Accounting & Operations (Mess_Fees, Mess_Leaves, Mess_Refunds, Mess_Expenses)
 --  9. Sports Facility Management (Sports_Items, Sports_Issues, Sports_Fines)
 --
 -- Usage:
@@ -33,11 +33,9 @@ TRUNCATE TABLE
     Mess_Settings, 
     Staff_Roles, 
     Vendors, 
-    Inventory, 
     Menu_Dishes, 
     Sports_Items,
-    Mess_Expenses,
-    Alerts
+    Mess_Expenses
 RESTART IDENTITY CASCADE;
 
 -- ---------------------------------------------------------------------
@@ -226,27 +224,7 @@ INSERT INTO Payments (bt_no, amount, payment_date, status) VALUES
 ('BT24ECE091', 50000.00, '2025-01-25', 'Paid');
 
 -- ---------------------------------------------------------------------
--- 12. Mess Inventory (Generous quantities for recipe deductions)
--- ---------------------------------------------------------------------
-INSERT INTO Inventory (item_id, item_name, quantity, unit, cost_per_unit, total_cost, week_no) VALUES 
-(1,  'Rice', 500.00, 'kg', 45.00, 22500.00, 1),
-(2,  'Wheat Flour', 400.00, 'kg', 38.00, 15200.00, 1),
-(3,  'Poha Rice', 150.00, 'kg', 40.00, 6000.00, 1),
-(4,  'Onion', 250.00, 'kg', 25.00, 6250.00, 1),
-(5,  'Potato', 300.00, 'kg', 30.00, 9000.00, 1),
-(6,  'Cooking Oil', 180.00, 'litre', 140.00, 25200.00, 1),
-(7,  'Dal (Pulses)', 200.00, 'kg', 95.00, 19000.00, 1),
-(8,  'Paneer', 90.00, 'kg', 260.00, 23400.00, 1),
-(9,  'Milk', 250.00, 'litre', 55.00, 13750.00, 1),
-(10, 'Sugar', 120.00, 'kg', 42.00, 5040.00, 1),
-(11, 'Tea Leaves', 14.00, 'kg', 320.00, 4480.00, 1), -- Low stock for alert demonstration (< 20)
-(12, 'Mixed Spices & Salt', 50.00, 'kg', 180.00, 9000.00, 1),
-(13, 'Tomatoes', 120.00, 'kg', 35.00, 4200.00, 1);
-
-SELECT setval('inventory_item_id_seq', (SELECT MAX(item_id) FROM Inventory));
-
--- ---------------------------------------------------------------------
--- 13. Menu Dishes Catalog
+-- 12. Menu Dishes Catalog
 -- ---------------------------------------------------------------------
 INSERT INTO Menu_Dishes (dish_id, dish_name, meal_type) VALUES 
 (1,  'Poha', 'Breakfast'),
@@ -268,52 +246,7 @@ INSERT INTO Menu_Dishes (dish_id, dish_name, meal_type) VALUES
 SELECT setval('menu_dishes_dish_id_seq', (SELECT MAX(dish_id) FROM Menu_Dishes));
 
 -- ---------------------------------------------------------------------
--- 14. Dish Requirements (Recipe Bill-of-Materials)
--- ---------------------------------------------------------------------
-INSERT INTO Dish_Requirements (dish_id, item_id, required_qty) VALUES 
-(1, 3, 5.00),  -- Poha: Poha Rice 5kg
-(1, 4, 2.00),  -- Poha: Onion 2kg
-(1, 6, 1.00),  -- Poha: Cooking Oil 1L
-(2, 4, 2.00),  -- Upma: Onion 2kg
-(2, 6, 1.00),  -- Upma: Cooking Oil 1L
-(3, 2, 6.00),  -- Paratha: Wheat Flour 6kg
-(3, 5, 3.00),  -- Paratha: Potato 3kg
-(3, 6, 1.00),  -- Paratha: Cooking Oil 1L
-(4, 9, 10.00), -- Tea: Milk 10L
-(4, 10, 2.00), -- Tea: Sugar 2kg
-(4, 11, 0.50), -- Tea: Tea Leaves 0.5kg
-(5, 1, 8.00),  -- Rice Dal: Rice 8kg
-(5, 7, 4.00),  -- Rice Dal: Dal 4kg
-(5, 6, 1.00),  -- Rice Dal: Oil 1L
-(6, 5, 6.00),  -- Aloo Sabzi: Potato 6kg
-(6, 4, 2.00),  -- Aloo Sabzi: Onion 2kg
-(6, 6, 1.00),  -- Aloo Sabzi: Oil 1L
-(7, 8, 5.00),  -- Paneer Curry: Paneer 5kg
-(7, 4, 2.00),  -- Paneer Curry: Onion 2kg
-(7, 6, 1.00),  -- Paneer Curry: Oil 1L
-(7, 13, 3.00), -- Paneer Curry: Tomatoes 3kg
-(8, 2, 8.00),  -- Roti: Wheat Flour 8kg
-(9, 1, 6.00),  -- Khichdi: Rice 6kg
-(9, 7, 3.00),  -- Khichdi: Dal 3kg
-(9, 6, 1.00),  -- Khichdi: Oil 1L
-(10, 1, 7.00), -- Veg Pulao: Rice 7kg
-(10, 5, 3.00), -- Veg Pulao: Potato 3kg
-(10, 4, 2.00), -- Veg Pulao: Onion 2kg
-(10, 6, 1.00), -- Veg Pulao: Oil 1L
-(11, 2, 7.00), -- Chapati: Wheat Flour 7kg
-(12, 5, 4.00), -- Mixed Sabzi: Potato 4kg
-(12, 4, 2.00), -- Mixed Sabzi: Onion 2kg
-(12, 6, 1.00), -- Mixed Sabzi: Oil 1L
-(14, 1, 8.00), -- Rajma Chawal: Rice 8kg
-(14, 7, 5.00), -- Rajma Chawal: Dal 5kg
-(14, 13, 3.00),-- Rajma Chawal: Tomatoes 3kg
-(15, 7, 6.00), -- Dal Makhani: Dal 6kg
-(15, 9, 4.00), -- Dal Makhani: Milk 4L
-(15, 6, 1.50)  -- Dal Makhani: Oil 1.5L
-ON CONFLICT (dish_id, item_id) DO NOTHING;
-
--- ---------------------------------------------------------------------
--- 15. Weekly Menu Schedule (Monday to Sunday)
+-- 13. Weekly Menu Schedule (Monday to Sunday)
 -- ---------------------------------------------------------------------
 INSERT INTO Weekly_Menu (day_name, meal_type, dish_id) VALUES 
 ('Monday',    'Breakfast', 1),
@@ -337,20 +270,6 @@ INSERT INTO Weekly_Menu (day_name, meal_type, dish_id) VALUES
 ('Sunday',    'Breakfast', 13),
 ('Sunday',    'Lunch',     5),
 ('Sunday',    'Dinner',    9);
-
--- ---------------------------------------------------------------------
--- 16. Meal Log
--- (Triggers check inventory and deduct stock accordingly)
--- ---------------------------------------------------------------------
-INSERT INTO Meal_Log (dish_id, served_date, meal_type, remarks) VALUES 
-(1,  CURRENT_DATE - INTERVAL '2 days', 'Breakfast', 'Poha served on schedule with tea'),
-(5,  CURRENT_DATE - INTERVAL '2 days', 'Lunch',     'Rice Dal lunch service smooth'),
-(9,  CURRENT_DATE - INTERVAL '2 days', 'Dinner',    'Hot khichdi dinner served'),
-(2,  CURRENT_DATE - INTERVAL '1 day',  'Breakfast', 'Upma served with coconut chutney'),
-(6,  CURRENT_DATE - INTERVAL '1 day',  'Lunch',     'Aloo Sabzi with hot rotis'),
-(10, CURRENT_DATE - INTERVAL '1 day',  'Dinner',    'Special Veg Pulao night'),
-(3,  CURRENT_DATE,                     'Breakfast', 'Fresh aloo paratha breakfast'),
-(7,  CURRENT_DATE,                     'Lunch',     'Paneer curry special feast');
 
 -- ---------------------------------------------------------------------
 -- 17. Monthly Mess Fees Billing
@@ -397,61 +316,7 @@ INSERT INTO Mess_Expenses (type, amount, expense_date, remarks) VALUES
 ('Dairy & Milk',          18200.00, '2025-03-15', 'March dairy supply invoice'),
 ('Groceries & Grains',    29000.00, '2025-03-20', 'Grain and cooking oil shipment');
 
--- ---------------------------------------------------------------------
--- 20. Purchase Orders & Line Items
--- ---------------------------------------------------------------------
-INSERT INTO Purchase_Orders (po_id, vendor_id, order_date, status) VALUES 
-(1, 1, '2025-02-05', 'Completed'),
-(2, 2, '2025-02-10', 'Completed'),
-(3, 3, '2025-02-15', 'Completed'),
-(4, 1, '2025-03-01', 'Completed'),
-(5, 5, '2025-03-08', 'Pending');
 
-SELECT setval('purchase_orders_po_id_seq', (SELECT MAX(po_id) FROM Purchase_Orders));
-
-INSERT INTO Purchase_Items (po_id, item_id, qty, price) VALUES 
-(1, 4, 100.00, 25.00),   -- PO 1: Onion 100kg
-(1, 5, 120.00, 30.00),   -- PO 1: Potato 120kg
-(2, 9, 200.00, 55.00),   -- PO 2: Milk 200L
-(2, 8, 50.00,  260.00),  -- PO 2: Paneer 50kg
-(3, 1, 300.00, 45.00),   -- PO 3: Rice 300kg
-(3, 7, 100.00, 95.00),   -- PO 3: Dal 100kg
-(4, 4, 80.00,  26.00),   -- PO 4: Onion 80kg
-(4, 13, 60.00, 35.00),   -- PO 4: Tomatoes 60kg
-(5, 6, 100.00, 140.00);  -- PO 5: Cooking Oil 100L
-
--- ---------------------------------------------------------------------
--- 21. Pantry Scrap & Waste Log (Feeds vw_top_waste_items)
--- ---------------------------------------------------------------------
-INSERT INTO Waste_Log (item_id, qty, waste_date, reason) VALUES 
-(4,  12.50, '2025-02-05', 'Peeling scrap and moisture spoilage'),
-(5,  18.00, '2025-02-12', 'Rotten pieces during initial sorting'),
-(9,  8.00,  '2025-02-20', 'Curdled during temporary refrigerator power outage'),
-(13, 14.00, '2025-03-02', 'Overripe during transit'),
-(1,  6.00,  '2025-03-05', 'Plate waste from dinner service'),
-(2,  5.00,  '2025-03-08', 'Dough batch left over overnight');
-
--- ---------------------------------------------------------------------
--- 22. Student Mess Feedback (Feeds vw_feedback_average)
--- ---------------------------------------------------------------------
-INSERT INTO Mess_Feedback (bt_no, dish_id, rating, comment_text, feedback_date) VALUES 
-('BT24CSE106', 7,  5, 'Paneer Curry was rich, flavorful and soft!', '2025-02-12'),
-('BT24CSE088', 1,  4, 'Poha was light and tasty, lemon slice was a nice touch.', '2025-02-14'),
-('BT24CSE083', 5,  4, 'Rice and Dal tadka had great home-cooked flavor.', '2025-02-15'),
-('BT24CSE082', 3,  5, 'Paratha with butter was fantastic on Sunday breakfast.', '2025-02-16'),
-('BT25ECE045', 10, 4, 'Veg Pulao aroma was wonderful with fresh veggies.', '2025-02-22'),
-('BT26ME008',  9,  3, 'Khichdi was wholesome but could use a bit more salt.', '2025-02-25'),
-('BT23IT034',  7,  5, 'Best paneer dish this semester! Perfectly cooked.', '2025-03-02'),
-('BT24ECE091', 14, 5, 'Rajma Chawal combo was outstanding.', '2025-03-05');
-
--- ---------------------------------------------------------------------
--- 23. System Alerts
--- ---------------------------------------------------------------------
-INSERT INTO Alerts (alert_type, message_text, created_at, is_resolved) VALUES 
-('Low Stock', 'Tea Leaves is below threshold (14.00 kg remaining)', '2025-03-01 08:00:00', 'No'),
-('Maintenance', 'Kitchen chimney cleaning due for scheduled quarterly service', '2025-03-02 09:30:00', 'No'),
-('Hygiene', 'Mess dining hall pest control routine completed', '2025-02-28 17:00:00', 'Yes'),
-('Payment Reminder', 'March Mess Dues reminder dispatched to unassigned students', '2025-03-05 10:00:00', 'Yes');
 
 -- ---------------------------------------------------------------------
 -- 24. Sports Facility Catalog
@@ -517,20 +382,12 @@ UNION ALL SELECT 'Payments', COUNT(*) FROM Payments
 UNION ALL SELECT 'Staff_Roles', COUNT(*) FROM Staff_Roles
 UNION ALL SELECT 'Mess_Staff', COUNT(*) FROM Mess_Staff
 UNION ALL SELECT 'Vendors', COUNT(*) FROM Vendors
-UNION ALL SELECT 'Inventory', COUNT(*) FROM Inventory
 UNION ALL SELECT 'Menu_Dishes', COUNT(*) FROM Menu_Dishes
-UNION ALL SELECT 'Dish_Requirements', COUNT(*) FROM Dish_Requirements
 UNION ALL SELECT 'Weekly_Menu', COUNT(*) FROM Weekly_Menu
-UNION ALL SELECT 'Meal_Log', COUNT(*) FROM Meal_Log
 UNION ALL SELECT 'Mess_Fees', COUNT(*) FROM Mess_Fees
 UNION ALL SELECT 'Mess_Leaves', COUNT(*) FROM Mess_Leaves
 UNION ALL SELECT 'Mess_Refunds', COUNT(*) FROM Mess_Refunds
 UNION ALL SELECT 'Mess_Expenses', COUNT(*) FROM Mess_Expenses
-UNION ALL SELECT 'Purchase_Orders', COUNT(*) FROM Purchase_Orders
-UNION ALL SELECT 'Purchase_Items', COUNT(*) FROM Purchase_Items
-UNION ALL SELECT 'Waste_Log', COUNT(*) FROM Waste_Log
-UNION ALL SELECT 'Mess_Feedback', COUNT(*) FROM Mess_Feedback
-UNION ALL SELECT 'Alerts', COUNT(*) FROM Alerts
 UNION ALL SELECT 'Sports_Items', COUNT(*) FROM Sports_Items
 UNION ALL SELECT 'Sports_Issues', COUNT(*) FROM Sports_Issues
 UNION ALL SELECT 'Sports_Fines', COUNT(*) FROM Sports_Fines

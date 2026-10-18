@@ -9,7 +9,7 @@
 
    Triggers do the rest. This file does NOT insert into tables that
    your triggers fill automatically:
-     Room_Occupancy, Leave_Summary, Refunds, Sports_Fines, Alerts
+     Room_Occupancy, Leave_Summary, Refunds, Sports_Fines
    =================================================================== */
 try { require('dotenv').config(); } catch (_) { /* dotenv is optional */ }
 
@@ -38,14 +38,11 @@ const HOSTEL_FEE = { Single: 45000, Double: 36000, Triple: 30000 }; // per semes
 const MESS_FEE_PER_MONTH = 4500;
 const REFUND_PER_DAY = 100;
 
-// Status words are guesses - change them if your tables have CHECK constraints.
 const STATUS = {
   PAID: 'Paid', PENDING: 'Pending',
   OPEN: 'Pending', PROGRESS: 'In Progress', DONE: 'Resolved', // complaints
   ISSUED: 'Issued', RETURNED: 'Returned',                      // sports_issues
 };
-// Items pushed below the 20-unit threshold at the end -> fires low_stock_alert trigger
-const LOW_STOCK = [['Tea Powder', 8], ['Paneer', 12], ['Spinach', 15]];
 
 /* ───────────── 2. HELPERS ───────────── */
 function mulberry32(a) { // seeded RNG: same data every run
@@ -77,7 +74,6 @@ const addDays = (d, n) => new Date(d.getTime() + n * DAY);
 const between = (a, b) => addDays(D(a), int(0, Math.round((D(b) - D(a)) / DAY)));
 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`;
 const NOW = new Date(TODAY + 'T12:00:00Z');
-const round2 = n => Math.round(n * 100) / 100;
 
 /* ───────────── 3. STATIC DATA ───────────── */
 const MALE = ['Aarav','Vivaan','Aditya','Arjun','Reyansh','Krishna','Ishaan','Rohan','Karan','Rahul','Siddharth','Harsh','Yash','Pranav','Nikhil','Aman','Ankit','Tejas','Om','Shubham','Atharva','Kunal','Mohit','Varun','Dhruv','Sahil','Parth','Gaurav','Abhishek','Vedant','Devansh','Manav','Chirag','Rishabh','Utkarsh','Piyush','Saurabh','Naman','Kartik','Sarthak','Ayush','Lakshya','Prathamesh','Omkar','Swapnil','Tushar','Vaibhav','Hardik','Jay','Mayank'];
@@ -95,79 +91,37 @@ const ISSUES = {
 };
 const PURPOSES = ['Parents Visit', 'Family Visit', 'Friend Visit', 'Document Delivery', 'Guardian Meeting'];
 
-// [item_name, unit, cost_per_unit, vendor index]
-const ITEMS = [
-  ['Rice','kg',58,0], ['Wheat Flour','kg',42,0], ['Toor Dal','kg',130,0], ['Rajma','kg',140,0], ['Chickpeas','kg',120,0],
-  ['Moong Dal','kg',120,0], ['Poha Flakes','kg',60,0], ['Semolina','kg',50,0], ['Besan','kg',90,0], ['Groundnut','kg',120,0],
-  ['Potato','kg',28,1], ['Onion','kg',32,1], ['Tomato','kg',40,1], ['Cauliflower','kg',45,1], ['Mixed Vegetables','kg',50,1], ['Spinach','kg',35,1],
-  ['Paneer','kg',320,2], ['Milk','litre',56,2], ['Curd','litre',60,2], ['Idli Batter','kg',70,2], ['Dosa Batter','kg',70,2],
-  ['Chicken','kg',220,3], ['Eggs','dozen',90,3],
-  ['Sugar','kg',45,4], ['Tea Powder','kg',420,4], ['Salt','kg',20,4], ['Biscuits','packet',10,4], ['Bread Loaf','packet',40,4], ['Maggi Noodles','packet',14,4],
-  ['Cooking Oil','litre',140,5], ['Spice Mix','kg',300,5],
-];
 const VENDORS = [
-  { vendor_name: 'Shree Ganesh Grain Traders', item_speciality: 'Grains & Pulses', contact_person: 'Ramesh Gupta', phone: '9822011101', email: 'ganeshgrains@example.com', address: 'Itwari, Nagpur' },
-  { vendor_name: 'Nagpur Fresh Vegetables', item_speciality: 'Fresh Vegetables & Greens', contact_person: 'Sanjay Kale', phone: '9822011102', email: 'freshveg@example.com', address: 'Kalamna Market, Nagpur' },
-  { vendor_name: 'Sai Dairy Products', item_speciality: 'Milk, Curd & Paneer', contact_person: 'Meena Patil', phone: '9822011103', email: 'saidairy@example.com', address: 'Sitabuldi, Nagpur' },
-  { vendor_name: 'Orange City Poultry', item_speciality: 'Eggs & Poultry', contact_person: 'Imran Sheikh', phone: '9822011104', email: 'orangepoultry@example.com', address: 'Mominpura, Nagpur' },
-  { vendor_name: 'Balaji Provisions', item_speciality: 'General Provisions & Groceries', contact_person: 'Vikas Agrawal', phone: '9822011105', email: 'balajiprov@example.com', address: 'Dharampeth, Nagpur' },
-  { vendor_name: 'Vidarbha Oil & Spices', item_speciality: 'Cooking Oil & Spices', contact_person: 'Prakash Joshi', phone: '9822011106', email: 'vidarbhaspices@example.com', address: 'Cotton Market, Nagpur' },
+  { vendor_name: 'Shree Ganesh Grain Traders', item_speciality: 'Grains & Pulses', phone: '9822011101' },
+  { vendor_name: 'Nagpur Fresh Vegetables', item_speciality: 'Fresh Vegetables & Greens', phone: '9822011102' },
+  { vendor_name: 'Sai Dairy Products', item_speciality: 'Milk, Curd & Paneer', phone: '9822011103' },
+  { vendor_name: 'Orange City Poultry', item_speciality: 'Eggs & Poultry', phone: '9822011104' },
+  { vendor_name: 'Balaji Provisions', item_speciality: 'General Provisions & Groceries', phone: '9822011105' },
+  { vendor_name: 'Vidarbha Oil & Spices', item_speciality: 'Cooking Oil & Spices', phone: '9822011106' },
 ];
 
-// [dish_name, meal_type, [[ingredient, qty for one full batch (~450 students)], ...]]
 const DISHES = [
-  ['Poha','Breakfast',[['Poha Flakes',25],['Onion',8],['Groundnut',3],['Cooking Oil',4]]],
-  ['Idli Sambar','Breakfast',[['Idli Batter',45],['Toor Dal',10],['Mixed Vegetables',10],['Spice Mix',1]]],
-  ['Aloo Paratha','Breakfast',[['Wheat Flour',35],['Potato',25],['Cooking Oil',6],['Curd',10]]],
-  ['Upma','Breakfast',[['Semolina',25],['Onion',6],['Cooking Oil',4],['Mixed Vegetables',8]]],
-  ['Masala Dosa','Breakfast',[['Dosa Batter',45],['Potato',25],['Onion',6],['Cooking Oil',6]]],
-  ['Bread Omelette','Breakfast',[['Bread Loaf',60],['Eggs',35],['Onion',4],['Cooking Oil',3]]],
-  ['Puri Bhaji','Breakfast',[['Wheat Flour',35],['Potato',30],['Cooking Oil',12],['Spice Mix',1.5]]],
-  ['Dal Tadka','Lunch',[['Toor Dal',30],['Onion',8],['Tomato',8],['Cooking Oil',3],['Spice Mix',1.5]]],
-  ['Rajma Masala','Lunch',[['Rajma',28],['Onion',10],['Tomato',12],['Cooking Oil',4],['Spice Mix',2]]],
-  ['Chole Masala','Lunch',[['Chickpeas',28],['Onion',10],['Tomato',12],['Cooking Oil',4],['Spice Mix',2]]],
-  ['Paneer Butter Masala','Lunch',[['Paneer',25],['Tomato',18],['Milk',8],['Cooking Oil',4],['Spice Mix',2]]],
-  ['Mixed Veg Curry','Lunch',[['Mixed Vegetables',55],['Onion',8],['Cooking Oil',4],['Spice Mix',2]]],
-  ['Aloo Gobi','Lunch',[['Potato',30],['Cauliflower',30],['Onion',6],['Cooking Oil',4],['Spice Mix',2]]],
-  ['Kadhi Pakora','Lunch',[['Curd',40],['Besan',15],['Onion',5],['Cooking Oil',8],['Spice Mix',1.5]]],
-  ['Jeera Rice','Lunch',[['Rice',50],['Cooking Oil',3],['Salt',1]]],
-  ['Phulka Roti','Lunch',[['Wheat Flour',40],['Cooking Oil',2],['Salt',1]]],
-  ['Samosa','Snacks',[['Wheat Flour',15],['Potato',20],['Cooking Oil',15],['Spice Mix',1]]],
-  ['Tea & Biscuits','Snacks',[['Tea Powder',2],['Milk',40],['Sugar',8],['Biscuits',50]]],
-  ['Bread Pakoda','Snacks',[['Bread Loaf',40],['Besan',12],['Potato',10],['Cooking Oil',12]]],
-  ['Veg Sandwich','Snacks',[['Bread Loaf',50],['Tomato',8],['Onion',5],['Cooking Oil',2]]],
-  ['Maggi Noodles','Snacks',[['Maggi Noodles',90],['Onion',4],['Mixed Vegetables',8],['Spice Mix',0.5]]],
-  ['Dal Fry','Dinner',[['Moong Dal',28],['Onion',8],['Tomato',8],['Cooking Oil',3],['Spice Mix',1.5]]],
-  ['Egg Curry','Dinner',[['Eggs',35],['Onion',10],['Tomato',10],['Cooking Oil',5],['Spice Mix',2]]],
-  ['Chicken Curry','Dinner',[['Chicken',70],['Onion',14],['Tomato',10],['Cooking Oil',6],['Spice Mix',3]]],
-  ['Veg Biryani','Dinner',[['Rice',55],['Mixed Vegetables',30],['Onion',8],['Cooking Oil',6],['Spice Mix',3]]],
-  ['Palak Paneer','Dinner',[['Spinach',35],['Paneer',20],['Onion',6],['Cooking Oil',4],['Spice Mix',2]]],
-  ['Dal Khichdi','Dinner',[['Rice',30],['Moong Dal',15],['Cooking Oil',3],['Salt',1.5]]],
-  ['Chapati','Dinner',[['Wheat Flour',40],['Cooking Oil',2],['Salt',1]]],
+  ['Poha','Breakfast'], ['Idli Sambar','Breakfast'], ['Aloo Paratha','Breakfast'], ['Upma','Breakfast'],
+  ['Masala Dosa','Breakfast'], ['Bread Omelette','Breakfast'], ['Puri Bhaji','Breakfast'],
+  ['Dal Tadka','Lunch'], ['Rajma Masala','Lunch'], ['Chole Masala','Lunch'], ['Paneer Butter Masala','Lunch'],
+  ['Mixed Veg Curry','Lunch'], ['Aloo Gobi','Lunch'], ['Kadhi Pakora','Lunch'], ['Jeera Rice','Lunch'], ['Phulka Roti','Lunch'],
+  ['Samosa','Snacks'], ['Tea & Biscuits','Snacks'], ['Bread Pakoda','Snacks'], ['Veg Sandwich','Snacks'], ['Maggi Noodles','Snacks'],
+  ['Dal Fry','Dinner'], ['Egg Curry','Dinner'], ['Chicken Curry','Dinner'], ['Veg Biryani','Dinner'], ['Palak Paneer','Dinner'],
+  ['Dal Khichdi','Dinner'], ['Chapati','Dinner'],
 ];
+
 const MENU = {
-  Monday:    { Breakfast: ['Poha'],         Lunch: ['Dal Tadka', 'Jeera Rice'],            Snacks: ['Samosa'],        Dinner: ['Egg Curry', 'Chapati'] },
-  Tuesday:   { Breakfast: ['Idli Sambar'],  Lunch: ['Rajma Masala', 'Jeera Rice'],         Snacks: ['Tea & Biscuits'], Dinner: ['Dal Fry', 'Chapati'] },
-  Wednesday: { Breakfast: ['Aloo Paratha'], Lunch: ['Paneer Butter Masala', 'Phulka Roti'], Snacks: ['Bread Pakoda'],  Dinner: ['Veg Biryani', 'Dal Fry'] },
-  Thursday:  { Breakfast: ['Upma'],         Lunch: ['Chole Masala', 'Phulka Roti'],        Snacks: ['Veg Sandwich'],  Dinner: ['Chicken Curry', 'Chapati'] },
-  Friday:    { Breakfast: ['Masala Dosa'],  Lunch: ['Mixed Veg Curry', 'Jeera Rice'],      Snacks: ['Maggi Noodles'], Dinner: ['Palak Paneer', 'Chapati'] },
-  Saturday:  { Breakfast: ['Puri Bhaji'],   Lunch: ['Kadhi Pakora', 'Jeera Rice'],         Snacks: ['Samosa'],        Dinner: ['Dal Khichdi', 'Egg Curry'] },
-  Sunday:    { Breakfast: ['Bread Omelette'], Lunch: ['Aloo Gobi', 'Phulka Roti'],         Snacks: ['Tea & Biscuits'], Dinner: ['Veg Biryani', 'Chicken Curry'] },
+  Monday:    { Breakfast: ['Poha'],         Lunch: ['Dal Tadka', 'Jeera Rice'],            Dinner: ['Egg Curry', 'Chapati'] },
+  Tuesday:   { Breakfast: ['Idli Sambar'],  Lunch: ['Rajma Masala', 'Jeera Rice'],         Dinner: ['Dal Fry', 'Chapati'] },
+  Wednesday: { Breakfast: ['Aloo Paratha'], Lunch: ['Paneer Butter Masala', 'Phulka Roti'], Dinner: ['Veg Biryani', 'Dal Fry'] },
+  Thursday:  { Breakfast: ['Upma'],         Lunch: ['Chole Masala', 'Phulka Roti'],        Dinner: ['Chicken Curry', 'Chapati'] },
+  Friday:    { Breakfast: ['Masala Dosa'],  Lunch: ['Mixed Veg Curry', 'Jeera Rice'],      Dinner: ['Palak Paneer', 'Chapati'] },
+  Saturday:  { Breakfast: ['Puri Bhaji'],   Lunch: ['Kadhi Pakora', 'Jeera Rice'],         Dinner: ['Dal Khichdi', 'Egg Curry'] },
+  Sunday:    { Breakfast: ['Bread Omelette'], Lunch: ['Aloo Gobi', 'Phulka Roti'],         Dinner: ['Veg Biryani', 'Chicken Curry'] },
 };
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const REMARKS = [null, null, null, 'Served on time', 'Served 15 min late', 'Ran out of second helpings', 'Extra portion prepared', 'Good turnout'];
-const REVIEWS = {
-  5: ['Tasted amazing', 'Just like home food', 'Best item of the week'],
-  4: ['Good taste, a bit more spice would help', 'Well cooked', 'Quite good'],
-  3: ['Average', 'Okay, nothing special', 'Needs more salt'],
-  2: ['Undercooked', 'Too oily', 'Was cold when served'],
-  1: ['Very poor quality', 'Tasted stale', 'Could not eat it'],
-};
-const WASTE_ITEMS = ['Tomato', 'Onion', 'Potato', 'Spinach', 'Mixed Vegetables', 'Cauliflower', 'Bread Loaf', 'Milk', 'Curd', 'Paneer', 'Idli Batter', 'Dosa Batter'];
-const WASTE_REASONS = ['Spoiled', 'Expired', 'Unsold leftovers', 'Damaged packaging', 'Pest damage'];
-// [role_name, salary_per_person, headcount]
+
 const ROLES = [['Mess Manager', 35000, 1], ['Head Cook', 28000, 2], ['Cook', 22000, 5], ['Kitchen Helper', 15000, 6], ['Server', 13000, 4], ['Cleaner', 12000, 2]];
-// [item_name, total_quantity, cost_per_item, fine_per_day]
+
 const SPORTS = [
   ['Cricket Bat',10,1500,20], ['Cricket Ball',24,350,10], ['Football',12,900,15], ['Basketball',10,1100,15],
   ['Volleyball',10,800,15], ['Badminton Racket',24,700,15], ['Shuttlecock Pack',30,250,10], ['Table Tennis Bat',12,450,10],
@@ -191,7 +145,7 @@ function generate() {
     return { l, n };
   };
 
-  // ── students (g = gender, used only to decide the floor; not stored in DB)
+  // ── students
   d.students = [];
   for (let year = 1; year <= 4; year++) {
     const genders = shuffle([...Array(BOYS_PER_YEAR).fill('M'), ...Array(GIRLS_PER_YEAR).fill('F')]);
@@ -210,7 +164,7 @@ function generate() {
     });
   }
 
-  // ── Ensure Bhoumik Jain (BT24CSE106) is explicitly preserved as the user's entry
+  // ── Preserve Bhoumik Jain (BT24CSE106)
   const bhoumikIndex = d.students.findIndex(s => s.year === 3 && s.branch === 'CSE' && s.g === 'M');
   if (bhoumikIndex !== -1) {
     d.students[bhoumikIndex].bt_no = 'BT24CSE106';
@@ -221,7 +175,7 @@ function generate() {
     d.students[bhoumikIndex].created_at = '2024-07-20 10:00:00';
   }
 
-  // ── rooms: 5 floors x 50 rooms (101-150, 201-250, ...)
+  // ── rooms
   d.rooms = [];
   for (const f of FLOORS) {
     let n = 0;
@@ -234,14 +188,13 @@ function generate() {
   }
   const roomByNo = new Map(d.rooms.map(r => [r.room_no, r]));
 
-  // ── allocations (+ ~10% of students moved rooms once -> allocation_history)
+  // ── allocations
   d.allocations = [];
   d.history = [];
   for (const f of FLOORS) {
     const residents = d.students.filter(s => (f.gender === 'F' ? s.g === 'F' : s.g === 'M' && s.year === f.year));
     const floorRooms = d.rooms.filter(r => r.floor_no === f.floor);
     const beds = shuffle(floorRooms.flatMap(r => Array(r.max_capacity).fill(r.room_no)));
-    if (residents.length > beds.length) throw new Error(`Floor ${f.floor}: ${residents.length} students but only ${beds.length} beds`);
     residents.forEach((s, i) => {
       s.room_no = beds[i];
       let allocDate = between('2026-07-25', '2026-08-08');
@@ -257,7 +210,7 @@ function generate() {
     });
   }
 
-  // ── hostel leaves (non-overlapping per student) -> triggers build Leave_Summary + Refunds
+  // ── hostel leaves
   d.leaves = [];
   for (const s of d.students) {
     if (!chance(0.35)) continue;
@@ -281,7 +234,7 @@ function generate() {
     let status = pick(complaintStatuses), resolved = null;
     if (status === STATUS.DONE) {
       resolved = new Date(created.getTime() + int(1, 6) * DAY + int(0, 5) * 36e5);
-      if (resolved > NOW) { status = STATUS.PROGRESS; resolved = null; } // cannot be resolved in the future
+      if (resolved > NOW) { status = STATUS.PROGRESS; resolved = null; }
     }
     return {
       bt_no: s.bt_no, room_no: s.room_no, issue_type, description: pick(ISSUES[issue_type]),
@@ -289,7 +242,7 @@ function generate() {
     };
   });
 
-  // ── hostel fee payments (amount depends on room type; pending => no payment date)
+  // ── hostel payments
   d.payments = d.students.map(s => {
     const paid = chance(0.85);
     return {
@@ -300,7 +253,7 @@ function generate() {
     };
   });
 
-  // ── visitors (visiting hours 10:00-19:30)
+  // ── visitors
   d.visitors = Array.from({ length: 90 }, () => {
     const s = pick(d.students);
     const purpose = pick(PURPOSES);
@@ -314,7 +267,7 @@ function generate() {
     };
   });
 
-  // ── mess fees: Aug, Sep, Oct 2026
+  // ── mess fees
   d.messFees = [];
   for (const s of d.students) {
     for (const m of [8, 9, 10]) {
@@ -327,7 +280,7 @@ function generate() {
     }
   }
 
-  // ── mess leaves = ~80% of hostel leaves; refund = total days x rate
+  // ── mess leaves
   d.messLeaves = d.leaves.filter(() => chance(0.8)).map(l => ({ ...l }));
   const refundDays = {};
   d.messLeaves.forEach(l => { refundDays[l.bt_no] = (refundDays[l.bt_no] || 0) + l.days; });
@@ -335,8 +288,8 @@ function generate() {
     bt_no, total_days, refund_amount: total_days * REFUND_PER_DAY, last_updated: ts(NOW),
   }));
 
-  // ── menu, weekly menu, meal log (4 weeks)
-  d.dishes = DISHES.map(([name, type, ings]) => ({ name, type, ings }));
+  // ── dishes & menu
+  d.dishes = DISHES.map(([name, type]) => ({ name, type }));
   const dishByName = new Map(d.dishes.map(x => [x.name, x]));
   d.weeklyMenu = [];
   for (const [day_name, meals] of Object.entries(MENU)) {
@@ -347,23 +300,6 @@ function generate() {
       }
     }
   }
-  d.mealLog = [];
-  for (let k = 0; k < 28; k++) { // 2026-09-20 .. 2026-10-17
-    const date = addDays(D('2026-09-20'), k);
-    for (const [meal_type, dishes] of Object.entries(MENU[DAY_NAMES[date.getUTCDay()]])) {
-      for (const dish of dishes) d.mealLog.push({ dish, served_date: iso(date), meal_type, remarks: pick(REMARKS) });
-    }
-  }
-  d.requirements = d.dishes.flatMap(x => x.ings.map(([item, qty]) => ({ dish: x.name, item, qty })));
-
-  // ── inventory: sized from real usage so meal-log triggers never run out of stock
-  const usage = {};
-  d.mealLog.forEach(m => dishByName.get(m.dish).ings.forEach(([item, qty]) => { usage[item] = (usage[item] || 0) + qty; }));
-  d.usage = usage;
-  d.inventory = ITEMS.map(([item_name, unit, cost]) => {
-    const quantity = Math.ceil((usage[item_name] || 0) * 1.3) + 40;
-    return { item_name, quantity, unit, cost_per_unit: cost, total_cost: round2(quantity * cost), week_no: 42 };
-  });
 
   // ── staff
   d.roles = ROLES.map(([role_name, salary_per_person]) => ({ role_name, salary_per_person }));
@@ -378,38 +314,10 @@ function generate() {
     }
   });
 
-  // ── vendors, purchase orders (Jul-Oct), waste log, feedback
+  // ── vendors
   d.vendors = VENDORS;
-  const windows = [['2026-07-20', '2026-07-31'], ['2026-08-01', '2026-08-28'], ['2026-09-01', '2026-09-28'], ['2026-10-01', '2026-10-15']];
-  d.purchaseOrders = [];
-  VENDORS.forEach((v, vi) => windows.forEach(([a, b], wi) => {
-    const items = ITEMS.filter(it => it[3] === vi).map(([item_name, , cost]) => {
-      const quantity = Math.max(5, Math.round((usage[item_name] || 20) * (0.7 + rand() * 0.6)));
-      return { item_name, quantity, unit_price: round2(cost * (0.95 + rand() * 0.1)) };
-    });
-    d.purchaseOrders.push({
-      vendor_name: v.vendor_name, order_date: iso(between(a, b)),
-      status: wi === 3 && chance(0.3) ? 'Pending' : 'Delivered',
-      total: round2(items.reduce((t, i) => t + i.quantity * i.unit_price, 0)), items,
-    });
-  }));
-  d.waste = Array.from({ length: 40 }, () => ({
-    item_name: pick(WASTE_ITEMS), quantity: round2(0.5 + rand() * 4),
-    waste_date: iso(between('2026-09-01', '2026-10-16')), reason: pick(WASTE_REASONS),
-  }));
-  const seen = new Set();
-  d.feedback = [];
-  while (d.feedback.length < 220) {
-    const s = pick(d.students), dish = pick(d.dishes), key = s.bt_no + '|' + dish.name;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const rating = pick([5, 5, 4, 4, 4, 3, 3, 2, 1]);
-    const review = pick(REVIEWS[rating]);
-    const when = iso(between('2026-09-20', '2026-10-17'));
-    d.feedback.push({ bt_no: s.bt_no, dish: dish.name, rating, review, comments: review, comment_text: review, feedback_date: when, created_at: when + ' 20:00:00' });
-  }
 
-  // ── mess expenses (feeds vw_monthly_cost_trends)
+  // ── mess expenses
   d.messExpenses = [
     { type: 'Vegetables', amount: 24500.00, expense_date: '2026-07-28', remarks: 'July fresh produce purchase' },
     { type: 'Dairy & Milk', amount: 28800.00, expense_date: '2026-07-31', remarks: 'July milk and paneer settlement' },
@@ -425,7 +333,7 @@ function generate() {
     { type: 'Vegetables', amount: 25000.00, expense_date: '2026-10-15', remarks: 'October fresh vegetables' },
   ];
 
-  // ── sports: items + issues (cumulative qty per item stays below stock, so checks never fail)
+  // ── sports
   d.sportsItems = SPORTS.map(([item_name, total, cost, fine]) => ({
     item_name, total_quantity: total, available_quantity: total, fine_per_day: fine, cost_per_item: cost, total_cost: total * cost,
   }));
@@ -438,7 +346,7 @@ function generate() {
     const issued = between('2026-08-20', '2026-10-16');
     const due = addDays(issued, 3);
     const r = rand();
-    let ret = r < 0.2 ? null : r < 0.5 ? addDays(due, int(1, 6)) : addDays(issued, int(0, 3)); // 30% late
+    let ret = r < 0.2 ? null : r < 0.5 ? addDays(due, int(1, 6)) : addDays(issued, int(0, 3));
     if (ret && ret > D(TODAY)) ret = null;
     d.sportsIssues.push({
       bt_no: s.bt_no, item: it[0], quantity: qty,
@@ -477,18 +385,21 @@ function report(d) {
   console.log('Rows to insert:', {
     students: d.students.length, rooms: d.rooms.length, allocations: d.allocations.length, history: d.history.length,
     leaves: d.leaves.length, complaints: d.complaints.length, payments: d.payments.length, visitors: d.visitors.length,
-    mess_fees: d.messFees.length, meal_log: d.mealLog.length, feedback: d.feedback.length, sports_issues: d.sportsIssues.length,
+    mess_fees: d.messFees.length, sports_issues: d.sportsIssues.length,
   });
 }
 
 /* ───────────── 6. DB HELPERS ───────────── */
-const ALL_TABLES = ['sports_fines', 'sports_issues', 'sports_items', 'alerts', 'mess_feedback', 'waste_log', 'purchase_items',
-  'purchase_orders', 'vendors', 'mess_staff', 'staff_roles', 'meal_log', 'dish_requirements', 'weekly_menu', 'menu_dishes',
-  'inventory', 'mess_refunds', 'mess_leaves', 'mess_fees', 'allocation_history', 'visitors', 'payments', 'complaints',
-  'refunds', 'leave_summary', 'leave_log', 'room_occupancy', 'room_allocations', 'rooms', 'students', 'mess_expenses'];
+const ALL_TABLES = [
+  'sports_fines', 'sports_issues', 'sports_items',
+  'mess_staff', 'staff_roles', 'vendors',
+  'weekly_menu', 'menu_dishes',
+  'mess_refunds', 'mess_leaves', 'mess_fees', 'mess_expenses',
+  'allocation_history', 'visitors', 'payments', 'complaints',
+  'refunds', 'leave_summary', 'leave_log', 'room_occupancy', 'room_allocations', 'rooms', 'students'
+];
 
 const colCache = {};
-// Real writable columns of a table (skips GENERATED columns). Lets us ignore guessed columns that don't exist.
 async function tableCols(c, table) {
   const tbl = table.toLowerCase();
   if (!colCache[tbl]) {
@@ -508,7 +419,7 @@ async function insertRows(c, table, rows, { returning, onConflict = '', quiet = 
   const keys = all.filter(k => cols.has(k));
   const ignored = all.filter(k => !cols.has(k));
   if (ignored.length && !quiet) console.warn(`  ! ${table}: columns not in DB, ignored -> ${ignored.join(', ')}`);
-  const chunk = Math.floor(60000 / keys.length); // Postgres limit: 65535 params per query
+  const chunk = Math.floor(60000 / keys.length);
   const out = [];
   for (let i = 0; i < rows.length; i += chunk) {
     const params = [];
@@ -528,7 +439,6 @@ async function idMap(c, table, rows, idCol, nameCol) {
   return new Map(out.map(r => [r[nameCol], r[idCol]]));
 }
 
-// Runs fn inside a SAVEPOINT: if it fails, only this block is skipped (not the whole seed).
 async function section(c, label, fn) {
   console.log(label);
   await c.query('SAVEPOINT sec');
@@ -556,7 +466,6 @@ async function wipe(c) {
 
 /* ───────────── 7. SEEDING ───────────── */
 async function seed(c, d) {
-  // Settings first: refund triggers read them
   await section(c, 'Settings', async () => {
     await upsertSetting(c, 'hostel_settings', 'leave_refund_per_day', REFUND_PER_DAY);
     await upsertSetting(c, 'mess_settings', 'refund_per_day', REFUND_PER_DAY);
@@ -565,11 +474,11 @@ async function seed(c, d) {
   console.log('Core hostel');
   await insertRows(c, 'students', d.students.map(s => only(s, ['bt_no', 'name', 'year', 'phone', 'email', 'branch', 'created_at'])));
   await insertRows(c, 'rooms', d.rooms);
-  await insertRows(c, 'room_allocations', d.allocations); // triggers: capacity check + room_occupancy
+  await insertRows(c, 'room_allocations', d.allocations);
   await c.query(`INSERT INTO room_occupancy (room_no, current_count)
-                 SELECT room_no, 0 FROM rooms ON CONFLICT (room_no) DO NOTHING`); // empty rooms get a 0 row
+                 SELECT room_no, 0 FROM rooms ON CONFLICT (room_no) DO NOTHING`);
   await insertRows(c, 'allocation_history', d.history);
-  await insertRows(c, 'leave_log', d.leaves);              // triggers: leave_summary + refunds
+  await insertRows(c, 'leave_log', d.leaves);
   await insertRows(c, 'complaints', d.complaints);
   await insertRows(c, 'payments', d.payments);
   await insertRows(c, 'visitors', d.visitors);
@@ -585,55 +494,19 @@ async function seed(c, d) {
   }
   const dishId = await idMap(c, 'menu_dishes', d.dishes.map(x => ({ dish_name: x.name, meal_type: x.type })), 'dish_id', 'dish_name');
   await insertRows(c, 'weekly_menu', d.weeklyMenu.map(m => ({ day_name: m.day_name, meal_type: m.meal_type, dish_id: dishId.get(m.dish) })));
-  const itemId = await idMap(c, 'inventory', d.inventory, 'item_id', 'item_name');
-  await insertRows(c, 'dish_requirements', d.requirements.map(r => ({ dish_id: dishId.get(r.dish), item_id: itemId.get(r.item), required_qty: r.qty })));
-  // triggers: stock check + deduct inventory for each meal
-  await insertRows(c, 'meal_log', d.mealLog.map(m => ({ dish_id: dishId.get(m.dish), served_date: m.served_date, meal_type: m.meal_type, remarks: m.remarks })));
-
-  // Push a few items below 20 -> low_stock_alert trigger fills Alerts, vw_low_inventory shows rows
-  const invCols = await tableCols(c, 'inventory');
-  for (const [name, qty] of LOW_STOCK) {
-    await c.query(
-      `UPDATE inventory SET quantity = $1${invCols.has('total_cost') ? ', total_cost = $1 * cost_per_unit' : ''} WHERE item_name = $2`,
-      [qty, name]);
-  }
-  console.log(`  ✓ low-stock demo: ${LOW_STOCK.map(x => x[0]).join(', ')}`);
 
   const roleId = await idMap(c, 'staff_roles', d.roles, 'role_id', 'role_name');
   await insertRows(c, 'mess_staff', d.staff.map(s => ({
     name: s.name, role_id: roleId.get(s.role), phone: s.phone, joining_date: s.joining_date, status: s.status,
   })));
 
-  // Vendors, purchase orders, waste log, feedback
-  await section(c, 'Vendors, purchase orders, waste log, feedback', async () => {
-    const vendorId = await idMap(c, 'vendors', d.vendors, 'vendor_id', 'vendor_name');
-    const itemRows = [];
-    for (const po of d.purchaseOrders) {
-      const [{ po_id }] = await insertRows(c, 'purchase_orders', [{
-        vendor_id: vendorId.get(po.vendor_name), order_date: po.order_date, status: po.status,
-        total_amount: po.total, total_cost: po.total,
-      }], { returning: 'po_id', quiet: true });
-      po.items.forEach(i => itemRows.push({
-        po_id, item_id: itemId.get(i.item_name),
-        quantity: i.quantity, qty: i.quantity,
-        unit_price: i.unit_price, price: i.unit_price, cost_per_unit: i.unit_price, total_cost: round2(i.quantity * i.unit_price),
-      }));
-    }
-    console.log(`  ✓ purchase_orders: ${d.purchaseOrders.length} rows`);
-    await insertRows(c, 'purchase_items', itemRows);
-    await insertRows(c, 'waste_log', d.waste.map(w => ({
-      item_id: itemId.get(w.item_name), quantity: w.quantity, qty: w.quantity, waste_date: w.waste_date, reason: w.reason,
-    })));
-    await insertRows(c, 'mess_feedback', d.feedback.map(f => ({
-      ...f, dish_id: dishId.get(f.dish), dish: undefined,
-      comment_text: f.review || f.comments,
-    })));
+  await section(c, 'Vendors', async () => {
+    await insertRows(c, 'vendors', d.vendors);
   });
 
   console.log('Sports');
   const sportId = await idMap(c, 'sports_items', d.sportsItems, 'item_id', 'item_name');
   for (const s of d.sportsIssues) {
-    // insert as "Issued" first (stock triggers run), then mark "Returned" via UPDATE so the late-fine trigger fires
     const [{ issue_id }] = await insertRows(c, 'sports_issues', [{
       bt_no: s.bt_no, item_id: sportId.get(s.item), quantity: s.quantity,
       issue_date: s.issue_date, due_date: s.due_date, return_date: null, status: STATUS.ISSUED,
@@ -644,7 +517,6 @@ async function seed(c, d) {
     }
   }
   console.log(`  ✓ sports_issues: ${d.sportsIssues.length} rows`);
-  // make available_quantity match reality (total - items still out)
   await c.query(
     `UPDATE sports_items si SET available_quantity = si.total_quantity -
        COALESCE((SELECT SUM(i.quantity) FROM sports_issues i WHERE i.item_id = si.item_id AND i.status = $1), 0)`,
