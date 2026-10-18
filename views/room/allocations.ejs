@@ -168,7 +168,9 @@
                         <select name="room_no" class="form-select" required>
                             <option value="">Select Room</option>
                             <% rooms.forEach(function(r) { %>
+                            <% if (r.room_no !== alloc.room_no) { %>
                             <option value="<%= r.room_no %>">Room <%= r.room_no %> (<%= r.room_type %>)</option>
+                            <% } %>
                             <% }); %>
                         </select>
                     </div>

@@ -193,45 +193,7 @@ const pageTitle = 'Sports Dashboard';
                     </div>
                 </div>
 
-                <% if (fines.length > 0) { %>
-                <div class="row mt-4">
-                    <div class="col-12">
-                        <div class="card border-danger">
-                            <div class="card-header bg-danger text-white">
-                                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Pending Fines</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-sm">
-                                        <thead>
-                                            <tr>
-                                                <th>Student</th>
-                                                <th>Item</th>
-                                                <th>Issue Date</th>
-                                                <th>Due Date</th>
-                                                <th>Return Date</th>
-                                                <th>Fine Amount</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <% fines.forEach(function(fine) { %>
-                                            <tr>
-                                                <td><%= fine.name %></td>
-                                                <td><%= fine.item_name %></td>
-                                                <td><%= fine.issue_date ? new Date(fine.issue_date).toLocaleDateString() : 'N/A' %></td>
-                                                <td><%= fine.due_date ? new Date(fine.due_date).toLocaleDateString() : 'N/A' %></td>
-                                                <td><%= fine.return_date ? new Date(fine.return_date).toLocaleDateString() : '-' %></td>
-                                                <td><span class="badge bg-danger">₹<%= parseFloat(fine.fine_amount).toFixed(2) %></span></td>
-                                            </tr>
-                                            <% }); %>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <% } %>
+
             </div>
         </div>
     </div>

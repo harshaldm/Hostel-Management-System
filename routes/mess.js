@@ -128,14 +128,33 @@ router.get('/staff', async (req, res) => {
 
 router.post('/staff/add', async (req, res) => {
     try {
-        const { name, role_id, phone, joining_date } = req.body;
-        await db.query('INSERT INTO Mess_Staff (name, role_id, phone, joining_date) VALUES (?, ?, ?, ?)', 
-            [name, role_id, phone, joining_date]);
+        const { name, role_id, phone, joining_date, status } = req.body;
+        const validStatus = (status === 'Inactive') ? 'Inactive' : 'Active';
+        await db.query('INSERT INTO Mess_Staff (name, role_id, phone, joining_date, status) VALUES (?, ?, ?, ?, ?)', 
+            [name, role_id, phone, joining_date, validStatus]);
         res.redirect('/mess/staff');
     } catch (err) {
         res.redirect('/mess/staff');
     }
 });
+
+const handleStaffStatusUpdate = async (req, res) => {
+    try {
+        const { status } = req.body;
+        if (status !== 'Active' && status !== 'Inactive') {
+            return res.status(400).json({ error: "Invalid status. Only 'Active' or 'Inactive' are allowed." });
+        }
+        const staffId = req.params.id;
+        await db.query('UPDATE Mess_Staff SET status = ? WHERE staff_id = ?', [status, staffId]);
+        res.json({ success: true, staff_id: staffId, status });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+router.patch('/staff/:id/status', handleStaffStatusUpdate);
+router.put('/staff/:id/status', handleStaffStatusUpdate);
+router.post('/staff/:id/status', handleStaffStatusUpdate);
 
 router.get('/vendors', async (req, res) => {
     try {

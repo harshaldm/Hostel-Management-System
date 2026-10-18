@@ -206,6 +206,51 @@ router.post('/rooms/edit/:room_no', async (req, res) => {
 
 
 
+const getAvailableRooms = async () => {
+    const [rooms] = await db.query(`
+        SELECT r.room_no, r.room_type, r.max_capacity,
+               COUNT(ra.bt_no) AS current_allocations
+        FROM Rooms r
+        LEFT JOIN Room_Allocations ra ON r.room_no = ra.room_no
+        GROUP BY r.room_no, r.room_type, r.max_capacity
+        HAVING COUNT(ra.bt_no) < r.max_capacity
+        ORDER BY r.room_no ASC
+    `);
+    return rooms;
+};
+
+router.get('/available-rooms', async (req, res) => {
+    try {
+        const rooms = await getAvailableRooms();
+        const formatted = rooms.map(r => ({
+            room_no: r.room_no,
+            room_type: r.room_type,
+            max_capacity: r.max_capacity,
+            current_allocations: parseInt(r.current_allocations, 10),
+            label: `Room ${r.room_no} (${r.room_type})`
+        }));
+        res.json(formatted);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/api/available-rooms', async (req, res) => {
+    try {
+        const rooms = await getAvailableRooms();
+        const formatted = rooms.map(r => ({
+            room_no: r.room_no,
+            room_type: r.room_type,
+            max_capacity: r.max_capacity,
+            current_allocations: parseInt(r.current_allocations, 10),
+            label: `Room ${r.room_no} (${r.room_type})`
+        }));
+        res.json(formatted);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.get('/allocations', async (req, res) => {
     try {
         const [allocations] = await db.query(`
@@ -216,8 +261,8 @@ router.get('/allocations', async (req, res) => {
             ORDER BY ra.allocation_date DESC
         `);
         const [students] = await db.query('SELECT * FROM Students WHERE bt_no NOT IN (SELECT bt_no FROM Room_Allocations)');
-        const [rooms] = await db.query('SELECT * FROM Rooms');
-        res.render('room/allocations', { allocations, students, rooms, page: 'allocations', error: null });
+        const rooms = await getAvailableRooms();
+        res.render('room/allocations', { allocations, students, rooms, page: 'allocations', error: req.query.error || null });
     } catch (err) {
         res.render('room/allocations', { allocations: [], students: [], rooms: [], page: 'allocations', error: err.message });
     }
@@ -229,26 +274,33 @@ router.post('/allocations/add', async (req, res) => {
         await db.query('INSERT INTO Room_Allocations (bt_no, room_no) VALUES (?, ?)', [bt_no, room_no]);
         res.redirect('/room/allocations');
     } catch (err) {
-        const [allocations] = await db.query(`
-            SELECT ra.*, s.name, r.room_type 
-            FROM Room_Allocations ra 
-            JOIN Students s ON ra.bt_no = s.bt_no 
-            JOIN Rooms r ON ra.room_no = r.room_no
-            ORDER BY ra.allocation_date DESC
-        `);
-        const [students] = await db.query('SELECT * FROM Students WHERE bt_no NOT IN (SELECT bt_no FROM Room_Allocations)');
-        const [rooms] = await db.query('SELECT * FROM Rooms');
-        res.render('room/allocations', { allocations, students, rooms, page: 'allocations', error: err.message });
+        const friendlyMsg = err.message && err.message.includes('Room is full')
+            ? 'Room is full. Please select another available room.'
+            : (err.message || 'Failed to allocate room.');
+        res.redirect('/room/allocations?error=' + encodeURIComponent(friendlyMsg));
     }
 });
 
 router.post('/allocations/reassign', async (req, res) => {
     try {
         const { bt_no, room_no } = req.body;
+        const [dest] = await db.query(`
+            SELECT r.max_capacity, COUNT(ra.bt_no) as occupied
+            FROM Rooms r
+            LEFT JOIN Room_Allocations ra ON r.room_no = ra.room_no
+            WHERE r.room_no = ?
+            GROUP BY r.max_capacity
+        `, [room_no]);
+        if (dest.length > 0 && parseInt(dest[0].occupied, 10) >= parseInt(dest[0].max_capacity, 10)) {
+            return res.redirect('/room/allocations?error=' + encodeURIComponent('Room is full. Please select another available room.'));
+        }
         await db.query('UPDATE Room_Allocations SET room_no = ?, allocation_date = NOW() WHERE bt_no = ?', [room_no, bt_no]);
         res.redirect('/room/allocations');
     } catch (err) {
-        res.redirect('/room/allocations');
+        const friendlyMsg = err.message && err.message.includes('Room is full')
+            ? 'Room is full. Please select another available room.'
+            : (err.message || 'Failed to reassign room.');
+        res.redirect('/room/allocations?error=' + encodeURIComponent(friendlyMsg));
     }
 });
 
@@ -257,7 +309,7 @@ router.post('/allocations/delete/:bt_no', async (req, res) => {
         await db.query('DELETE FROM Room_Allocations WHERE bt_no = ?', [req.params.bt_no]);
         res.redirect('/room/allocations');
     } catch (err) {
-        res.redirect('/room/allocations');
+        res.redirect('/room/allocations?error=' + encodeURIComponent(err.message));
     }
 });
 
