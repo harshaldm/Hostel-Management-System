@@ -68,9 +68,10 @@ router.post('/students/add', async (req, res) => {
         return renderWithError('Please enter a valid email address.');
     }
 
-    // 6. Validation for Branch
-    if (!branch || branch.length < 2) {
-        return renderWithError('Please specify a valid branch/department (e.g. CSE, ECE, MECH).');
+    // 6. Strict Validation for Branch (Allowed: CSA, CSD, CSE, CSH, ECI, ECE)
+    const ALLOWED_BRANCHES = ['CSA', 'CSD', 'CSE', 'CSH', 'ECI', 'ECE'];
+    if (!branch || !ALLOWED_BRANCHES.includes(branch)) {
+        return renderWithError(`Please select a valid branch (${ALLOWED_BRANCHES.join(', ')}).`);
     }
 
     try {
@@ -123,8 +124,9 @@ router.post('/students/edit/:bt_no', async (req, res) => {
         return res.redirect('/room/students?error=' + encodeURIComponent('Please enter a valid email address.'));
     }
 
-    if (!branch || branch.length < 2) {
-        return res.redirect('/room/students?error=' + encodeURIComponent('Please enter a valid branch.'));
+    const ALLOWED_BRANCHES = ['CSA', 'CSD', 'CSE', 'CSH', 'ECI', 'ECE'];
+    if (!branch || !ALLOWED_BRANCHES.includes(branch)) {
+        return res.redirect('/room/students?error=' + encodeURIComponent(`Please select a valid branch (${ALLOWED_BRANCHES.join(', ')}).`));
     }
 
     try {
